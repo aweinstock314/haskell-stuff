@@ -1,6 +1,8 @@
 #!/usr/bin/env runghc
+import Control.Monad
 import Data.Array.IArray
 --import Data.Array.IO
+import Data.IORef
 import System.Random
 
 -- TODO: threshholds other than 50%
@@ -21,7 +23,7 @@ showBoard dim brd = dogrid dim (\x y -> putStr . show $ brd!(x, y)) (putStrLn ""
 --showBoard dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= putStr . show) (putStrLn "")
 
 neighbors brd x y =
-    map (brd!) $ filter (\(x', y') -> (abs (x-x') <= 1) && (abs (y-y') <= 1)) (indices brd)
+    map (brd!) $ filter (\(x', y') -> (1 == max (abs (x-x')) (abs (y-y')))) (indices brd)
 
 amapi :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
 amapi f arr = array (minIx, maxIx) (map (\(i, e) -> (i, f i e)) (assocs arr)) where
@@ -39,9 +41,10 @@ evolveBoard brd = amapi (\(x, y) e ->
 main = do
     let dim = (50, 50)
     gen <- getStdGen
-    let board = makeRandomBoard gen dim :: Array (Int, Int) Int
+    --let board = makeRandomBoard gen dim :: Array (Int, Int) Int
+    board <- newIORef (makeRandomBoard gen dim :: Array (Int, Int) Int)
     --board <- makeRandomBoard gen (5, 5) :: IO (IOArray (Int, Int) Int)
-    --print board
-    showBoard dim board
-    putStrLn ""
-    showBoard dim (evolveBoard board)
+    forever $ do
+        readIORef board >>= showBoard dim
+        putStrLn ""
+        modifyIORef board evolveBoard
