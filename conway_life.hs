@@ -1,8 +1,10 @@
 #!/usr/bin/env runghc
+import Control.Exception
 import Control.Monad
 import Data.Array.IArray
 --import Data.Array.IO
 import Data.IORef
+import System.Environment
 import System.Random
 
 -- TODO: threshholds other than 50%
@@ -38,13 +40,24 @@ evolveBoard brd = amapi (\(x, y) e ->
         _ -> error "evolveBoard: Unexpected entry"
     ) brd
 
-main = do
-    let dim = (50, 50)
+showAutomaton dim loop = do
     gen <- getStdGen
     --let board = makeRandomBoard gen dim :: Array (Int, Int) Int
     board <- newIORef (makeRandomBoard gen dim :: Array (Int, Int) Int)
     --board <- makeRandomBoard gen (5, 5) :: IO (IOArray (Int, Int) Int)
-    forever $ do
+    loop $ do
         readIORef board >>= showBoard dim
         putStrLn ""
         modifyIORef board evolveBoard
+
+showUsage = getProgName >>= \ name -> 
+    putStrLn $ "Usage: {" ++ name ++ " [iterations [width height]]} or {" ++ name ++ " width height}"
+
+main = do
+    args <- getArgs
+    let defaultDims = (50, 50)
+    handle ((\ e -> print e >> showUsage) :: SomeException -> IO ()) $ case args of
+        [] -> showAutomaton defaultDims forever
+        [iters] -> showAutomaton defaultDims (replicateM_ $ read iters)
+        [width, height] -> showAutomaton (read width, read height) forever
+        [iters, width, height] -> showAutomaton (read width, read height) (replicateM_ $ read iters)
