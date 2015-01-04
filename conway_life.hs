@@ -7,9 +7,12 @@ import Data.IORef
 import System.Environment
 import System.Random
 
--- TODO: threshholds other than 50%
-makeRandomBoard gen (w, h) = listArray ((0, 0), (w-1, h-1)) (map (`mod` 2) (randoms gen))
+--makeRandomBoard gen (w, h) = listArray ((0, 0), (w-1, h-1)) (map (`mod` 2) (randoms gen))
 --makeRandomBoard gen (w, h) = newListArray ((0, 0), (w-1, h-1)) (map (`mod` 2) (randoms gen))
+
+makeRandomBoard gen (w, h) density =
+    listArray ((0, 0), (w-1, h-1))
+    (map (\x-> if x < density then 1 else 0) (randoms gen :: [Double]))
 
 dotimes = flip mapM_ . enumFromTo 0 . (\x -> x-1)
 
@@ -42,8 +45,8 @@ evolveBoard brd = amapi (\(x, y) e ->
 
 showAutomaton dim loop = do
     gen <- getStdGen
-    --let board = makeRandomBoard gen dim :: Array (Int, Int) Int
-    board <- newIORef (makeRandomBoard gen dim :: Array (Int, Int) Int)
+    --let board = makeRandomBoard gen dim 0.3:: Array (Int, Int) Int
+    board <- newIORef (makeRandomBoard gen dim 0.3 :: Array (Int, Int) Int)
     --board <- makeRandomBoard gen (5, 5) :: IO (IOArray (Int, Int) Int)
     loop $ do
         readIORef board >>= showBoard dim
