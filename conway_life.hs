@@ -4,6 +4,8 @@ import Control.Monad
 import Data.Array.IArray
 --import Data.Array.IO
 import Data.IORef
+import Data.Maybe
+import System.Console.GetOpt
 import System.Environment
 import System.Random
 
@@ -43,24 +45,31 @@ evolveBoard brd = amapi (\(x, y) e ->
         _ -> error "evolveBoard: Unexpected entry"
     ) brd
 
-showAutomaton dim loop = do
+showAutomaton (w, h, loop) = do
     gen <- getStdGen
-    --let board = makeRandomBoard gen dim 0.3:: Array (Int, Int) Int
-    board <- newIORef (makeRandomBoard gen dim 0.3 :: Array (Int, Int) Int)
-    --board <- makeRandomBoard gen (5, 5) :: IO (IOArray (Int, Int) Int)
+    --let board = makeRandomBoard gen (w, h) 0.3 :: Array (Int, Int) Int
+    board <- newIORef (makeRandomBoard gen (w, h) 0.3 :: Array (Int, Int) Int)
+    --board <- makeRandomBoard gen (w, h) :: IO (IOArray (Int, Int) Int)
     loop $ do
-        readIORef board >>= showBoard dim
+        readIORef board >>= showBoard (w, h)
         putStrLn ""
         modifyIORef board evolveBoard
 
-showUsage = getProgName >>= \ name -> 
-    putStrLn $ "Usage: {" ++ name ++ " [iterations [width height]]} or {" ++ name ++ " width height}"
+parse ctor = catMaybes . map (Just . ctor . fst) . reads
+data Opt = Width Int | Height Int | Iterations Int deriving (Eq, Show)
+options = [
+    Option "w" ["width"] (ReqArg (parse Width)  "WIDTH") "Width of the board",
+    Option "h" ["height"] (ReqArg (parse Height) "HEIGHT") "Height of the board",
+    Option "i" ["iterations"] (ReqArg (parse Iterations) "ITERS") "Number of iterations"
+    ]
+processOpts = foldr (\opt (w, h, loop) -> case opt of
+        Width w' -> (w', h, loop)
+        Height h' -> (w, h', loop)
+        Iterations i -> (w, h, replicateM_ i :: IO a -> IO ())
+    ) (50, 50, forever)
 
 main = do
     args <- getArgs
-    let defaultDims = (50, 50)
-    handle ((\ e -> print e >> showUsage) :: SomeException -> IO ()) $ case args of
-        [] -> showAutomaton defaultDims forever
-        [iters] -> showAutomaton defaultDims (replicateM_ $ read iters)
-        [width, height] -> showAutomaton (read width, read height) forever
-        [iters, width, height] -> showAutomaton (read width, read height) (replicateM_ $ read iters)
+    case getOpt Permute options args of
+        (opts, _, []) -> showAutomaton . processOpts $ concat opts
+        _ -> error $ usageInfo "" options
