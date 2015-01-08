@@ -5,15 +5,15 @@ import Data.Array.IArray
 --import Data.Array.IO
 import Data.IORef
 import Data.Maybe
+import Data.List
 import System.Console.GetOpt
 import System.Environment
 import System.Random
 
---makeRandomBoard gen (w, h) = listArray ((0, 0), (w-1, h-1)) (map (`mod` 2) (randoms gen))
---makeRandomBoard gen (w, h) = newListArray ((0, 0), (w-1, h-1)) (map (`mod` 2) (randoms gen))
+--makeRandomBoard arrayCtor gen (w, h) = arrayCtor ((0, 0), (w-1, h-1)) (map (`mod` 2) (randoms gen))
 
-makeRandomBoard gen (w, h) density =
-    listArray ((0, 0), (w-1, h-1))
+makeRandomBoard arrayCtor gen (w, h) density =
+    arrayCtor ((0, 0), (w-1, h-1))
     (map (\x-> if x < density then 1 else 0) (randoms gen :: [Double]))
 
 dotimes = flip mapM_ . enumFromTo 0 . (\x -> x-1)
@@ -27,49 +27,60 @@ dogrid (w, h) eachIndex eachLine = do
         )
 
 showBoard dim brd = dogrid dim (\x y -> putStr . show $ brd!(x, y)) (putStrLn "")
---showBoard dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= putStr . show) (putStrLn "")
+--showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= putStr . show) (putStrLn "")
 
-neighbors brd x y =
-    map (brd!) $ filter (\(x', y') -> (1 == max (abs (x-x')) (abs (y-y')))) (indices brd)
+truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> return (x, y)
+wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
+adjacents (x, y) = do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
+
+neighbors handleEdges brd = map (brd!) . catMaybes . map handleEdges . adjacents
 
 amapi :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
 amapi f arr = array (minIx, maxIx) (map (\(i, e) -> (i, f i e)) (assocs arr)) where
     minIx = minimum $ indices arr
     maxIx = maximum $ indices arr
 
-evolveBoard brd = amapi (\(x, y) e ->
-    let s = sum $ neighbors brd x y in
+evolveBoard handleEdges brd = amapi (\(x, y) e ->
+    let s = sum $ neighbors handleEdges brd (x, y) in
     case e of
         0 -> if s == 3 then 1 else 0
         1 -> if s `elem` [2, 3] then 1 else 0
         _ -> error "evolveBoard: Unexpected entry"
     ) brd
 
-showAutomaton (w, h, loop) = do
+showAutomaton (w, h, loop, edge) = do
     gen <- getStdGen
-    --let board = makeRandomBoard gen (w, h) 0.3 :: Array (Int, Int) Int
-    board <- newIORef (makeRandomBoard gen (w, h) 0.3 :: Array (Int, Int) Int)
-    --board <- makeRandomBoard gen (w, h) :: IO (IOArray (Int, Int) Int)
+    board <- newIORef (makeRandomBoard listArray gen (w, h) 0.3 :: Array (Int, Int) Int)
+    --board <- makeRandomBoard newListArray gen (w, h) :: IO (IOArray (Int, Int) Int)
     loop $ do
         readIORef board >>= showBoard (w, h)
         putStrLn ""
-        modifyIORef board evolveBoard
+        modifyIORef board $ evolveBoard (edge (w, h))
 
 parse ctor = catMaybes . map (Just . ctor . fst) . reads
-data Opt = Width Int | Height Int | Iterations Int deriving (Eq, Show)
+data Opt = Width Int | Height Int | Iterations Int | Edgehandling String | ShowHelp
 options = [
     Option "w" ["width"] (ReqArg (parse Width)  "WIDTH") "Width of the board",
     Option "h" ["height"] (ReqArg (parse Height) "HEIGHT") "Height of the board",
-    Option "i" ["iterations"] (ReqArg (parse Iterations) "ITERS") "Number of iterations"
+    Option "i" ["iterations"] (ReqArg (parse Iterations) "ITERS") "Number of iterations",
+    Option "e" ["edgehandling"] (ReqArg ((\x->[x]) . Edgehandling) "[wrap|trunc]")
+        "How to handle cells at the edge",
+    Option "?" ["help"] (NoArg [ShowHelp]) "Show this output"
     ]
-processOpts = foldr (\opt (w, h, loop) -> case opt of
-        Width w' -> (w', h, loop)
-        Height h' -> (w, h', loop)
-        Iterations i -> (w, h, replicateM_ i :: IO a -> IO ())
-    ) (50, 50, forever)
+
+processOpts = foldl (\(w, h, loop, edge) opt -> case opt of
+        Width w' -> (w', h, loop, edge)
+        Height h' -> (w, h', loop, edge)
+        Iterations i -> (w, h, replicateM_ i :: IO a -> IO (), edge)
+        Edgehandling s -> case s of
+            "wrap" -> (w, h, loop, wrapIdx)
+            "trunc" -> (w, h, loop, truncIdx)
+            _ -> error $ "Invalid edge handling mode: " ++ s
+        ShowHelp -> error $ usageInfo "" options
+    ) (50, 50, forever, wrapIdx)
 
 main = do
     args <- getArgs
     case getOpt Permute options args of
         (opts, _, []) -> showAutomaton . processOpts $ concat opts
-        _ -> error $ usageInfo "" options
+        (_, _, errs) -> error $ concat errs
