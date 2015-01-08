@@ -52,8 +52,8 @@ evolveBoard handleEdges brd = amapi (\(x, y) alive ->
     if alive then (neighborsAlive `elem` [2, 3]) else (neighborsAlive == 3)
     ) brd
 
-showAutomaton (w, h, loop, edge) = do
-    gen <- getStdGen
+showAutomaton (w, h, loop, edge, seedgen) = do
+    gen <- fromMaybe getStdGen $ liftM return seedgen
     board <- newIORef (makeRandomBoard listArray gen (w, h) 0.3 :: Array (Int, Int) Bool)
     --board <- makeRandomBoard newListArray gen (w, h) :: IO (IOArray (Int, Int) Bool)
     loop $ do
@@ -62,26 +62,28 @@ showAutomaton (w, h, loop, edge) = do
         modifyIORef board $ evolveBoard (edge (w, h))
 
 parse ctor = map (ctor . fst) . reads
-data Opt = Width Int | Height Int | Iterations Int | Edgehandling String | ShowHelp
+data Opt = Width Int | Height Int | Iterations Int | Seed Int | Edgehandling String | ShowHelp
 options = [
     Option "w" ["width"] (ReqArg (parse Width) "WIDTH") "Width of the board",
     Option "h" ["height"] (ReqArg (parse Height) "HEIGHT") "Height of the board",
     Option "i" ["iterations"] (ReqArg (parse Iterations) "ITERS") "Number of iterations",
+    Option "s" ["seed"] (ReqArg (parse Seed) "SEED") "Seed for the random number generator",
     Option "e" ["edgehandling"] (ReqArg ((\x->[x]) . Edgehandling) "[wrap|trunc]")
         "How to handle cells at the edge",
     Option "?" ["help"] (NoArg [ShowHelp]) "Show this output"
     ]
 
-processOpts = foldl (\(w, h, loop, edge) opt -> case opt of
-        Width w' -> (w', h, loop, edge)
-        Height h' -> (w, h', loop, edge)
-        Iterations i -> (w, h, replicateM_ i :: IO a -> IO (), edge)
+processOpts = foldl (\(w, h, loop, edge, seed) opt -> case opt of
+        Width w' -> (w', h, loop, edge, seed)
+        Height h' -> (w, h', loop, edge, seed)
+        Iterations i -> (w, h, replicateM_ i :: IO a -> IO (), edge, seed)
+        Seed s -> (w, h, loop, edge, Just $ mkStdGen s)
         Edgehandling s -> case s of
-            "wrap" -> (w, h, loop, wrapIdx)
-            "trunc" -> (w, h, loop, truncIdx)
+            "wrap" -> (w, h, loop, wrapIdx, seed)
+            "trunc" -> (w, h, loop, truncIdx, seed)
             _ -> error $ "Invalid edge handling mode: " ++ s
         ShowHelp -> error $ usageInfo "" options
-    ) (50, 50, forever, wrapIdx)
+    ) (50, 50, forever, wrapIdx, Nothing)
 
 main = do
     args <- getArgs
