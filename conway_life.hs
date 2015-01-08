@@ -10,11 +10,17 @@ import System.Console.GetOpt
 import System.Environment
 import System.Random
 
+intOfBool True = 1
+intOfBool False = 0
+
+showCell True = putStr "#"
+showCell False = putStr "_"
+
 --makeRandomBoard arrayCtor gen (w, h) = arrayCtor ((0, 0), (w-1, h-1)) (map (`mod` 2) (randoms gen))
 
 makeRandomBoard arrayCtor gen (w, h) density =
     arrayCtor ((0, 0), (w-1, h-1))
-    (map (\x-> if x < density then 1 else 0) (randoms gen :: [Double]))
+    (map (< density) (randoms gen :: [Double]))
 
 dotimes = flip mapM_ . enumFromTo 0 . (\x -> x-1)
 
@@ -26,8 +32,8 @@ dogrid (w, h) eachIndex eachLine = do
         eachLine
         )
 
-showBoard dim brd = dogrid dim (\x y -> putStr . show $ brd!(x, y)) (putStrLn "")
---showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= putStr . show) (putStrLn "")
+showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
+--showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")
 
 truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> return (x, y)
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
@@ -40,18 +46,16 @@ amapi f arr = array (minIx, maxIx) (map (\(i, e) -> (i, f i e)) (assocs arr)) wh
     minIx = minimum $ indices arr
     maxIx = maximum $ indices arr
 
-evolveBoard handleEdges brd = amapi (\(x, y) e ->
-    let s = sum $ neighbors handleEdges brd (x, y) in
-    case e of
-        0 -> if s == 3 then 1 else 0
-        1 -> if s `elem` [2, 3] then 1 else 0
-        _ -> error "evolveBoard: Unexpected entry"
+evolveBoard handleEdges brd = amapi (\(x, y) alive ->
+    let neighborsAlive = sum . map intOfBool $ neighbors handleEdges brd (x, y) in
+    -- A cell remains alive if it has 2 or 3 live neighbors, and a cell is born if it has 3 live neighbors
+    if alive then (neighborsAlive `elem` [2, 3]) else (neighborsAlive == 3)
     ) brd
 
 showAutomaton (w, h, loop, edge) = do
     gen <- getStdGen
-    board <- newIORef (makeRandomBoard listArray gen (w, h) 0.3 :: Array (Int, Int) Int)
-    --board <- makeRandomBoard newListArray gen (w, h) :: IO (IOArray (Int, Int) Int)
+    board <- newIORef (makeRandomBoard listArray gen (w, h) 0.3 :: Array (Int, Int) Bool)
+    --board <- makeRandomBoard newListArray gen (w, h) :: IO (IOArray (Int, Int) Bool)
     loop $ do
         readIORef board >>= showBoard (w, h)
         putStrLn ""
