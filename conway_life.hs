@@ -61,10 +61,10 @@ showAutomaton (w, h, loop, edge) = do
         putStrLn ""
         modifyIORef board $ evolveBoard (edge (w, h))
 
-parse ctor = catMaybes . map (Just . ctor . fst) . reads
+parse ctor = map (ctor . fst) . reads
 data Opt = Width Int | Height Int | Iterations Int | Edgehandling String | ShowHelp
 options = [
-    Option "w" ["width"] (ReqArg (parse Width)  "WIDTH") "Width of the board",
+    Option "w" ["width"] (ReqArg (parse Width) "WIDTH") "Width of the board",
     Option "h" ["height"] (ReqArg (parse Height) "HEIGHT") "Height of the board",
     Option "i" ["iterations"] (ReqArg (parse Iterations) "ITERS") "Number of iterations",
     Option "e" ["edgehandling"] (ReqArg ((\x->[x]) . Edgehandling) "[wrap|trunc]")
