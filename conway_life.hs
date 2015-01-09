@@ -8,6 +8,7 @@ import Data.Maybe
 import Data.List
 import System.Console.GetOpt
 import System.Environment
+import System.IO
 import System.Random
 
 intOfBool True = 1
@@ -53,12 +54,15 @@ evolveBoard handleEdges brd = amapi (\(x, y) alive ->
     ) brd
 
 showAutomaton (w, h, loop, edge, seedgen) = do
+    let linesBetweenIters = 1
+    -- Set the buffering to dump a whole board to stdout at once, to make animation appear smooth(er)
+    hSetBuffering stdout . BlockBuffering . Just $ (w+1)*h + linesBetweenIters
     gen <- fromMaybe getStdGen $ liftM return seedgen
     board <- newIORef (makeRandomBoard listArray gen (w, h) 0.3 :: Array (Int, Int) Bool)
     --board <- makeRandomBoard newListArray gen (w, h) :: IO (IOArray (Int, Int) Bool)
     loop $ do
         readIORef board >>= showBoard (w, h)
-        putStrLn ""
+        replicateM_ linesBetweenIters $ putStrLn ""
         modifyIORef board $ evolveBoard (edge (w, h))
 
 parse ctor = map (ctor . fst) . reads
