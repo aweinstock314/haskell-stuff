@@ -259,4 +259,45 @@ ff ff ff 48 65 6c 6c 6f  2c 20 77 6f 72 6c 64 21
 "\xff\xff\xffHello, world!\n"
 
 And it works!
+
+cat > hello4.s <<END_ASM
+mov \$14, %rdx
+mov \$1, %eax
+mov \$2, %edi
+jmp L1
+L2: pop %rsi
+syscall
+hlt
+L1: call L2
+.byte 'H', 'e', 'l', 'l', 'o', ',', ' ', 'w', 'o', 'r', 'l', 'd', '!', '\n'
+END_ASM
+
+0000000000000000 <L2-0x13>:
+   0:   48 c7 c2 0e 00 00 00    mov    $0xe,%rdx
+   7:   b8 01 00 00 00          mov    $0x1,%eax
+   c:   bf 02 00 00 00          mov    $0x2,%edi
+  11:   eb 04                   jmp    17 <L1>
+0000000000000013 <L2>:
+  13:   5e                      pop    %rsi
+  14:   0f 05                   syscall
+  16:   f4                      hlt
+0000000000000017 <L1>:
+  17:   e8 f7 ff ff ff          callq  13 <L2>
+  1c:   48                      rex.W
+  1d:   65                      gs
+  1e:   6c                      insb   (%dx),%es:(%rdi)
+  1f:   6c                      insb   (%dx),%es:(%rdi)
+  20:   6f                      outsl  %ds:(%rsi),(%dx)
+  21:   2c 20                   sub    $0x20,%al
+  23:   77 6f                   ja     94 <L1+0x7d>
+  25:   72 6c                   jb     93 <L1+0x7c>
+  27:   64 21 0a                and    %ecx,%fs:(%rdx)
+
+"\x48\xc7\xc2\x0e\x00\x00\x00\xb8\x01\x00\x00\x00\xbf\x02\x00\x00\x00\xeb\x04\x5e\x0f\x05\xf4\xe8\xf7\xff\xff\xff\x48\x65\x6c\x6c\x6f\x2c\x20\x77\x6f\x72\x6c\x64\x21\x0a"
+
+"\x48\xc7\xc2\x0e\x00\x00\x00\xb8\x01\x00\x00\x00\xbf\x02\x00"
+"\x00\x00\xeb\x04\x5e\x0f\x05\xf4\xe8\xf7\xff\xff\xffHello, w"
+"orld!\n";
+
 */
+
