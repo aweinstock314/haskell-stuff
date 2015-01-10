@@ -1,4 +1,4 @@
-TARGETS=conway_life
+TARGETS=conway_life cheatingquine
 .PHONY: all clean
 
 all: ${TARGETS}
