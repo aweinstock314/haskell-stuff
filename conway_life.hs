@@ -4,12 +4,14 @@ import Control.Monad
 import Data.Array.IArray
 --import Data.Array.IO
 import Data.IORef
-import Data.Maybe
 import Data.List
+import Data.Maybe
 import System.Console.GetOpt
 import System.Environment
 import System.IO
+import System.IO.Unsafe
 import System.Random
+import qualified Data.Map as M
 
 intOfBool True = 1
 intOfBool False = 0
@@ -40,7 +42,21 @@ truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> r
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
 adjacents (x, y) = do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
 
-neighbors handleEdges brd = map (brd!) . catMaybes . map handleEdges . adjacents
+-- use the "unsafePerformIO hack" to make a cache
+{-# NOINLINE adjacentsCache #-}
+adjacentsCache :: IORef (M.Map (Int, Int) [(Int, Int)])
+adjacentsCache = unsafePerformIO (newIORef $ M.fromList [])
+
+cachedAdjacents (x, y) = unsafePerformIO $ do
+    hm <- readIORef adjacentsCache
+    case M.lookup (x, y) hm of
+        Just adjs -> return adjs
+        Nothing -> do
+            let adjs = adjacents (x, y)
+            writeIORef adjacentsCache $ M.insert (x, y) adjs hm
+            return adjs
+
+sumOfNeighbors handleEdges brd = sum . map (intOfBool . (brd!)) . catMaybes . map handleEdges . cachedAdjacents
 
 amapi :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
 amapi f arr = array (minIx, maxIx) (map (\(i, e) -> (i, f i e)) (assocs arr)) where
@@ -48,7 +64,7 @@ amapi f arr = array (minIx, maxIx) (map (\(i, e) -> (i, f i e)) (assocs arr)) wh
     maxIx = maximum $ indices arr
 
 evolveBoard handleEdges brd = amapi (\(x, y) alive ->
-    let neighborsAlive = sum . map intOfBool $ neighbors handleEdges brd (x, y) in
+    let neighborsAlive = sumOfNeighbors handleEdges brd (x, y) in
     -- A cell remains alive if it has 2 or 3 live neighbors, and a cell is born if it has 3 live neighbors
     if alive then (neighborsAlive `elem` [2, 3]) else (neighborsAlive == 3)
     ) brd

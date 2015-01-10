@@ -1,6 +1,8 @@
 TARGETS=conway_life cheatingquine
 .PHONY: all clean
 
+PROFFLAGS=-prof -rtsopts -auto-all -caf-all
+
 all: ${TARGETS}
 
 %: %.hs
