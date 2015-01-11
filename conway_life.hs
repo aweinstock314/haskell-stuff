@@ -1,4 +1,5 @@
 #!/usr/bin/env runghc
+{-# LANGUAGE TemplateHaskell #-}
 import Control.Exception
 import Control.Monad
 import Data.Array.IArray
@@ -9,9 +10,10 @@ import Data.Maybe
 import System.Console.GetOpt
 import System.Environment
 import System.IO
-import System.IO.Unsafe
 import System.Random
-import qualified Data.Map as M
+import qualified System.IO.Unsafe
+import qualified Data.Map
+import MkCached
 
 intOfBool True = 1
 intOfBool False = 0
@@ -42,19 +44,7 @@ truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> r
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
 adjacents (x, y) = do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
 
--- use the "unsafePerformIO hack" to make a cache
-{-# NOINLINE adjacentsCache #-}
-adjacentsCache :: IORef (M.Map (Int, Int) [(Int, Int)])
-adjacentsCache = unsafePerformIO (newIORef $ M.fromList [])
-
-cachedAdjacents (x, y) = unsafePerformIO $ do
-    hm <- readIORef adjacentsCache
-    case M.lookup (x, y) hm of
-        Just adjs -> return adjs
-        Nothing -> do
-            let adjs = adjacents (x, y)
-            writeIORef adjacentsCache $ M.insert (x, y) adjs hm
-            return adjs
+$(mkCached "adjacents" "cachedAdjacents")
 
 sumOfNeighbors handleEdges brd = sum . map (intOfBool . (brd!)) . catMaybes . map handleEdges . cachedAdjacents
 
