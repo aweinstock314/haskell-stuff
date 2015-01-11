@@ -13,7 +13,7 @@ runghc, "factorialAsm" only seems to work when compiled...
 
 constant42Asm = bytesOfString "\xb0\x2a\xc3"
 identityAsm = bytesOfString "\x89\xf8\xc3"
-factorialAsm = bytesOfString "\xb0\x01\x89\xfb\x0f\xaf\xc3\xff\xcb\x83\xfb\x01\x75\xf6\xc3"
+factorialAsm = bytesOfString "\xb0\x01\x89\xfb\x0f\xaf\xc3\xff\xcb\x83\xfb\x01\x7d\xf6\xc3"
 
 declareExecuteBytes "executeIntToInt" [t| Int -> Int |]
 
@@ -21,4 +21,4 @@ main = do
     const42 <- executeIntToInt constant42Asm
     identInt <- executeIntToInt identityAsm
     fact <- executeIntToInt factorialAsm
-    print $ map ($ 5) [const42, identInt, fact]
+    print $ map (flip map [0..10]) [const42, identInt, fact]

@@ -13,5 +13,5 @@ fact_loop:
     imul %ebx, %eax
     dec %ebx
     cmp $1, %ebx
-    jne fact_loop
+    jge fact_loop
 ret
