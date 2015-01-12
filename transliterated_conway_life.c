@@ -1,6 +1,9 @@
+#define _XOPEN_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #define bool char
 
@@ -102,7 +105,6 @@ bool* evolveBoard(struct point* (*handleEdges)(size_t, size_t, size_t, size_t), 
 
 void showAutomaton(size_t w, size_t h, size_t* iters,
                     struct point* (*handleEdges)(size_t, size_t, size_t, size_t)) {
-    srand(time(NULL));
     bool* brd = makeRandomBoard(w, h, 0.3);
     for(size_t i=0; (!iters) || (i<*iters); i++) {
         showBoard(w, h, brd);
@@ -112,12 +114,47 @@ void showAutomaton(size_t w, size_t h, size_t* iters,
     free(brd);
 }
 
+void show_usage(const char* progname) {
+#define SHOW_OPT(short_opt, long_opt, placeholder, descr)\
+    puts("  -" short_opt " " placeholder "\t" descr)
+
+    printf("%s:\n", progname);
+    SHOW_OPT("w", "width=", "WIDTH", "Width of the board");
+    SHOW_OPT("h", "height=", "HEIGHT", "Height of the board");
+    SHOW_OPT("i", "iterations=", "ITERS", "Number of iterations");
+    SHOW_OPT("s", "seed=", "SEED", "Seed for the random number generator");
+    SHOW_OPT("e", "edgehandling=", "[wrap|trunc]", "How to handle cells at the edge");
+    SHOW_OPT("?", "help", "", "Show this output");
+    puts("");
+#undef SHOW_OPT
+}
+
+int parse_edgehandling(const char* str, struct point* (**handleEdges)(size_t, size_t, size_t, size_t)) {
+    if(!strcmp(str, "wrap")) { *handleEdges = &wrapIdx; return 0; }
+    if(!strcmp(str, "trunc")) { *handleEdges = &truncIdx; return 0; }
+    return 1;
+}
+
 int main(int argc, char** argv) {
-    // hard-code parameters for now
-    size_t w=50, h=50;
-    size_t* iters = malloc(sizeof(size_t));
-    *iters = 100;
+    size_t w=50, h=50, *iters=NULL;
     struct point* (*handleEdges)(size_t, size_t, size_t, size_t) = &wrapIdx;
+    unsigned int random_seed = time(NULL);
+    int c;
+    while(c=getopt(argc, argv, "w:h:i:s:e:?"), (c != -1)) {
+        if(c == '?') { show_usage(argv[0]); return 1; }
+        else switch(c) {
+            case 'w': w = atol(optarg); break;
+            case 'h': h = atol(optarg); break;
+            case 'i': free(iters); iters = malloc(sizeof(size_t)); *iters = atol(optarg); break;
+            case 's': random_seed = atoi(optarg); break;
+            case 'e': if(parse_edgehandling(optarg, &handleEdges)) {
+                printf("Invalid edge handling mode: %s\n", optarg);
+                return 1;
+            }
+            default: printf("Unrecognized option '%c'"); return 1;
+        }
+    }
+    srand(random_seed);
     showAutomaton(w, h, iters, handleEdges);
     free(iters);
     return 0;
