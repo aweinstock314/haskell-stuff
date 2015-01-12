@@ -1,9 +1,15 @@
+#ifndef ENABLE_LONG_OPTIONS
 #define _XOPEN_SOURCE
+#include <unistd.h>
+#else
+#define _GNU_SOURCE
+#include <getopt.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 
 #define bool char
 
@@ -115,9 +121,13 @@ void showAutomaton(size_t w, size_t h, size_t* iters,
 }
 
 void show_usage(const char* progname) {
+#ifndef ENABLE_LONG_OPTIONS
 #define SHOW_OPT(short_opt, long_opt, placeholder, descr)\
-    puts("  -" short_opt " " placeholder "\t" descr)
-
+    printf("  -%-14s  %-s\n", short_opt " " placeholder, descr)
+#else
+#define SHOW_OPT(short_opt, long_opt, placeholder, descr)\
+    printf("  -%-14s  --%-25s  %-s\n", short_opt " " placeholder, long_opt placeholder, descr)
+#endif
     printf("%s:\n", progname);
     SHOW_OPT("w", "width=", "WIDTH", "Width of the board");
     SHOW_OPT("h", "height=", "HEIGHT", "Height of the board");
@@ -135,12 +145,28 @@ int parse_edgehandling(const char* str, struct point* (**handleEdges)(size_t, si
     return 1;
 }
 
+const char short_options[] = "w:h:i:s:e:?";
+
+#ifndef ENABLE_LONG_OPTIONS
+#define GETOPT_INVOKATION getopt(argc, argv, short_options)
+#else
+const struct option long_options[] = {
+    {"width",         required_argument, NULL, 'w'},
+    {"height",        required_argument, NULL, 'h'},
+    {"iterations",    required_argument, NULL, 'i'},
+    {"seed",          required_argument, NULL, 's'},
+    {"edge_handling", required_argument, NULL, 'e'},
+    {"help",          no_argument,       NULL, '?'}
+};
+#define GETOPT_INVOKATION getopt_long(argc, argv, short_options, long_options, NULL)
+#endif
+
 int main(int argc, char** argv) {
     size_t w=50, h=50, *iters=NULL;
     struct point* (*handleEdges)(size_t, size_t, size_t, size_t) = &wrapIdx;
     unsigned int random_seed = time(NULL);
     int c;
-    while(c=getopt(argc, argv, "w:h:i:s:e:?"), (c != -1)) {
+    while(c=GETOPT_INVOKATION, (c != -1)) {
         if(c == '?') { show_usage(argv[0]); return 1; }
         else switch(c) {
             case 'w': w = atol(optarg); break;
