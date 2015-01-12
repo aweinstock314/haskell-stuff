@@ -10,8 +10,10 @@ factorial:
 mov $1, %al
 mov %edi, %ebx
 fact_loop:
+    cmp $1, %ebx
+    jl fact_end
     imul %ebx, %eax
     dec %ebx
-    cmp $1, %ebx
-    jge fact_loop
+    jmp fact_loop
+fact_end:
 ret

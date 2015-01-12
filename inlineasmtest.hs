@@ -13,7 +13,7 @@ runghc, "factorialAsm" only seems to work when compiled...
 
 constant42Asm = bytesOfString "\xb0\x2a\xc3"
 identityAsm = bytesOfString "\x89\xf8\xc3"
-factorialAsm = bytesOfString "\xb0\x01\x89\xfb\x0f\xaf\xc3\xff\xcb\x83\xfb\x01\x7d\xf6\xc3"
+factorialAsm = bytesOfString "\xb0\x01\x89\xfb\x83\xfb\x01\x7c\x07\x0f\xaf\xc3\xff\xcb\xeb\xf4\xc3"
 
 declareExecuteBytes "executeIntToInt" [t| Int -> Int |]
 
