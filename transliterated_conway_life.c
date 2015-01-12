@@ -150,8 +150,8 @@ int main(int argc, char** argv) {
             case 'e': if(parse_edgehandling(optarg, &handleEdges)) {
                 printf("Invalid edge handling mode: %s\n", optarg);
                 return 1;
-            }
-            default: printf("Unrecognized option '%c'"); return 1;
+            } break;
+            default: printf("Unrecognized option '%c'\n", c); return 1;
         }
     }
     srand(random_seed);
