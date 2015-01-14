@@ -14,6 +14,7 @@ import System.Random
 import qualified System.IO.Unsafe
 import qualified Data.Map
 import MkCached
+import qualified Data.Vector as V
 
 intOfBool :: Bool -> Int
 intOfBool True = 1
@@ -50,13 +51,15 @@ showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
 --wrapIdx, truncIdx :: (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
 truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> return (x, y)
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
-adjacents :: (Int, Int) -> [(Int, Int)]
-adjacents (x, y) = do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
+adjacents :: (Int, Int) -> V.Vector (Int, Int)
+adjacents (x, y) = V.fromList $ do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
 
 $(mkCachedAutoTyped "adjacents" "cachedAdjacents")
 
+vMapMaybe f = V.foldr' (\e a -> case f e of { Just e' -> e' `V.cons` a; Nothing -> a}) V.empty
+
 --sumOfNeighbors :: ((Int, Int) -> Maybe (Int, Int)) -> Array (Int, Int) Bool -> (Int, Int) -> Int
-sumOfNeighbors handleEdges brd = sum . map (intOfBool . (brd!)) . catMaybes . map handleEdges . cachedAdjacents
+sumOfNeighbors handleEdges brd = V.sum . V.map (intOfBool . (brd!)) . vMapMaybe handleEdges . cachedAdjacents
 
 amapi :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
 amapi f arr = array (minIx, maxIx) (map (\(i, e) -> (i, f i e)) (assocs arr)) where
