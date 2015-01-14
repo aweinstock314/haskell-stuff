@@ -27,8 +27,8 @@ makeRandomBoard arrayCtor gen (w, h) density =
     arrayCtor ((0, 0), (w-1, h-1))
     (map (< density) (randoms gen :: [Double]))
 
-dotimes = flip mapM_ . enumFromTo 0 . (\x -> x-1)
-
+{-
+dotimes = flip mapM_ . enumFromTo 0 . subtract 1
 dogrid (w, h) eachIndex eachLine = do
     dotimes h (\ y -> do
         dotimes w (\ x -> do
@@ -36,6 +36,12 @@ dogrid (w, h) eachIndex eachLine = do
             )
         eachLine
         )
+-}
+
+consToEnd x = reverse . (x :) . reverse
+
+dogrid :: (Int, Int) -> (Int -> Int -> IO ()) -> IO () -> IO ()
+dogrid (w, h) eachIndex eachLine = sequence_ $ [0..h-1] >>= consToEnd eachLine . (\y -> [0..w-1] >>= \x -> return $ eachIndex x y)
 
 showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
 --showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")
