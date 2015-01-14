@@ -48,7 +48,7 @@ dogrid (w, h) eachIndex eachLine = sequence_ $ [0..h-1] >>= consToEnd eachLine .
 showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
 --showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")
 
---wrapIdx, truncIdx :: (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
+wrapIdx, truncIdx :: (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
 truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> return (x, y)
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
 adjacents :: (Int, Int) -> V.Vector (Int, Int)
@@ -56,7 +56,7 @@ adjacents (x, y) = V.fromList $ do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y)
 
 $(mkCachedAutoTyped "adjacents" "cachedAdjacents")
 
-vMapMaybe f = V.foldr' (\e a -> case f e of { Just e' -> e' `V.cons` a; Nothing -> a}) V.empty
+vMapMaybe f = V.foldr' (\e a -> maybe a (`V.cons` a) (f e)) V.empty
 
 --sumOfNeighbors :: ((Int, Int) -> Maybe (Int, Int)) -> Array (Int, Int) Bool -> (Int, Int) -> Int
 sumOfNeighbors handleEdges brd = V.sum . V.map (intOfBool . (brd!)) . vMapMaybe handleEdges . cachedAdjacents
