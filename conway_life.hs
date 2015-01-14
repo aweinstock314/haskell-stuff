@@ -15,6 +15,7 @@ import qualified System.IO.Unsafe
 import qualified Data.Map
 import MkCached
 
+intOfBool :: Bool -> Int
 intOfBool True = 1
 intOfBool False = 0
 
@@ -46,12 +47,15 @@ dogrid (w, h) eachIndex eachLine = sequence_ $ [0..h-1] >>= consToEnd eachLine .
 showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
 --showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")
 
+--wrapIdx, truncIdx :: (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
 truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> return (x, y)
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
+adjacents :: (Int, Int) -> [(Int, Int)]
 adjacents (x, y) = do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
 
-$(mkCached "adjacents" "cachedAdjacents")
+$(mkCachedAutoTyped "adjacents" "cachedAdjacents")
 
+--sumOfNeighbors :: ((Int, Int) -> Maybe (Int, Int)) -> Array (Int, Int) Bool -> (Int, Int) -> Int
 sumOfNeighbors handleEdges brd = sum . map (intOfBool . (brd!)) . catMaybes . map handleEdges . cachedAdjacents
 
 amapi :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
