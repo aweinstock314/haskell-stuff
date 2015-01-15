@@ -15,6 +15,7 @@ import qualified System.IO.Unsafe
 import qualified Data.Map
 import MkCached
 import qualified Data.Vector as V
+import qualified Data.Vector.Fusion.Stream as S
 
 intOfBool :: Bool -> Int
 intOfBool True = 1
@@ -40,25 +41,24 @@ dogrid (w, h) eachIndex eachLine = do
         )
 -}
 
-consToEnd x = reverse . (x :) . reverse
 
 dogrid :: (Int, Int) -> (Int -> Int -> IO ()) -> IO () -> IO ()
-dogrid (w, h) eachIndex eachLine = sequence_ $ [0..h-1] >>= consToEnd eachLine . (\y -> [0..w-1] >>= \x -> return $ eachIndex x y)
+dogrid (w, h) eachIndex eachLine = V.sequence_ $ V.generate h id >>= (`V.snoc` eachLine) . (\y -> V.generate w id >>= \x -> return $ eachIndex x y)
 
 showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
 
 wrapIdx, truncIdx :: (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
 truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> return (x, y)
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
-adjacents :: (Int, Int) -> V.Vector (Int, Int)
-adjacents (x, y) = V.fromList $ do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
+adjacents :: (Int, Int) -> S.Stream (Int, Int)
+adjacents (x, y) = S.fromList $! do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
 
 $(mkCachedAutoTyped "adjacents" "cachedAdjacents")
 
-vMapMaybe f = V.foldr' (\e a -> maybe a (`V.cons` a) (f e)) V.empty
+vMapMaybe f s = S.map fromJust . S.filter isJust $ S.map f s
 
 sumOfNeighbors :: ((Int, Int) -> Maybe (Int, Int)) -> UArray (Int, Int) Bool -> (Int, Int) -> Int
-sumOfNeighbors handleEdges brd = V.sum . V.map (intOfBool . (brd!)) . vMapMaybe handleEdges . cachedAdjacents
+sumOfNeighbors handleEdges brd = S.foldr (+) 0 . S.map (intOfBool . (brd!)) . vMapMaybe handleEdges . cachedAdjacents
 
 amapi :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
 amapi f arr = array (bounds arr) (map (\(i, e) -> (i, f i e)) (assocs arr))
@@ -90,7 +90,7 @@ showAutomaton (w, h, loop, edge, seedgen) = do
 showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")
 
 sumOfNeighborsMut :: ((Int, Int) -> Maybe (Int, Int)) -> IOUArray (Int, Int) Bool -> (Int, Int) -> IO Int
-sumOfNeighborsMut handleEdges brd = fmap V.sum . V.mapM (fmap intOfBool . readArray brd) . vMapMaybe handleEdges . cachedAdjacents
+sumOfNeighborsMut handleEdges brd = fmap V.sum . V.mapM (fmap intOfBool . readArray brd) . V.fromList . S.toList . vMapMaybe handleEdges . cachedAdjacents
 
 mapArrayI :: (MArray a e m, MArray a e' m, Ix i) => (i -> e -> m e') -> a i e -> m (a i e')
 mapArrayI f arr = do
