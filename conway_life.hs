@@ -2,8 +2,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 import Control.Exception
 import Control.Monad
-import Data.Array.IArray
---import Data.Array.IO
+import Data.Array.Unboxed
+import Data.Array.IO
 import Data.IORef
 import Data.List
 import Data.Maybe
@@ -46,7 +46,6 @@ dogrid :: (Int, Int) -> (Int -> Int -> IO ()) -> IO () -> IO ()
 dogrid (w, h) eachIndex eachLine = sequence_ $ [0..h-1] >>= consToEnd eachLine . (\y -> [0..w-1] >>= \x -> return $ eachIndex x y)
 
 showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
---showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")
 
 wrapIdx, truncIdx :: (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
 truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> return (x, y)
@@ -58,31 +57,66 @@ $(mkCachedAutoTyped "adjacents" "cachedAdjacents")
 
 vMapMaybe f = V.foldr' (\e a -> maybe a (`V.cons` a) (f e)) V.empty
 
---sumOfNeighbors :: ((Int, Int) -> Maybe (Int, Int)) -> Array (Int, Int) Bool -> (Int, Int) -> Int
+sumOfNeighbors :: ((Int, Int) -> Maybe (Int, Int)) -> UArray (Int, Int) Bool -> (Int, Int) -> Int
 sumOfNeighbors handleEdges brd = V.sum . V.map (intOfBool . (brd!)) . vMapMaybe handleEdges . cachedAdjacents
 
 amapi :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
-amapi f arr = array (minIx, maxIx) (map (\(i, e) -> (i, f i e)) (assocs arr)) where
-    minIx = minimum $ indices arr
-    maxIx = maximum $ indices arr
+amapi f arr = array (bounds arr) (map (\(i, e) -> (i, f i e)) (assocs arr))
+
+{-# INLINE successorCell #-}
+-- A cell remains alive if it has 2 or 3 live neighbors, and a cell is born if it has 3 live neighbors
+successorCell :: Bool -> Int -> Bool
+successorCell True = (`elem` [2, 3])
+successorCell False = (== 3)
 
 evolveBoard handleEdges brd = amapi (\(x, y) alive ->
     let neighborsAlive = sumOfNeighbors handleEdges brd (x, y) in
-    -- A cell remains alive if it has 2 or 3 live neighbors, and a cell is born if it has 3 live neighbors
-    if alive then (neighborsAlive `elem` [2, 3]) else (neighborsAlive == 3)
+    successorCell alive neighborsAlive
     ) brd
 
+linesBetweenIters = 1
+-- Sets the buffering to dump a whole board to stdout at once, to make animation appear smooth(er)
+setBoardBuffering w h = hSetBuffering stdout . BlockBuffering . Just $ (w+1)*h + linesBetweenIters
+
 showAutomaton (w, h, loop, edge, seedgen) = do
-    let linesBetweenIters = 1
-    -- Set the buffering to dump a whole board to stdout at once, to make animation appear smooth(er)
-    hSetBuffering stdout . BlockBuffering . Just $ (w+1)*h + linesBetweenIters
+    setBoardBuffering w h
     gen <- fromMaybe getStdGen $ liftM return seedgen
-    board <- newIORef (makeRandomBoard listArray gen (w, h) 0.3 :: Array (Int, Int) Bool)
-    --board <- makeRandomBoard newListArray gen (w, h) :: IO (IOArray (Int, Int) Bool)
+    board <- newIORef (makeRandomBoard listArray gen (w, h) 0.3 :: UArray (Int, Int) Bool)
     loop $ do
         readIORef board >>= showBoard (w, h)
         replicateM_ linesBetweenIters $ putStrLn ""
         modifyIORef board $ evolveBoard (edge (w, h))
+
+showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")
+
+sumOfNeighborsMut :: ((Int, Int) -> Maybe (Int, Int)) -> IOUArray (Int, Int) Bool -> (Int, Int) -> IO Int
+sumOfNeighborsMut handleEdges brd = fmap V.sum . V.mapM (fmap intOfBool . readArray brd) . vMapMaybe handleEdges . cachedAdjacents
+
+mapArrayI :: (MArray a e m, MArray a e' m, Ix i) => (i -> e -> m e') -> a i e -> m (a i e')
+mapArrayI f arr = do
+    bounds <- getBounds arr
+    arr' <- newArray_ bounds
+    flip mapM_ (range bounds) $ \i -> do
+        e <- readArray arr i
+        e' <- f i e
+        writeArray arr' i e'
+    return arr'
+
+evolveBoardMut :: ((Int, Int) -> Maybe (Int, Int)) -> IOUArray (Int, Int) Bool -> IO (IOUArray (Int, Int) Bool)
+evolveBoardMut handleEdges brd = mapArrayI (\(x, y) alive -> do
+    neighborsAlive <- sumOfNeighborsMut handleEdges brd (x, y)
+    return $ successorCell alive neighborsAlive
+    ) brd
+
+showAutomatonMut (w, h, loop, edge, seedgen) = do
+    setBoardBuffering w h
+    gen <- fromMaybe getStdGen $ liftM return seedgen
+    boardRef <- (makeRandomBoard newListArray gen (w, h) 0.3 :: IO (IOUArray (Int, Int) Bool)) >>= newIORef
+    loop $ do
+        board <- readIORef boardRef
+        showBoardMut (w, h) board
+        replicateM_ linesBetweenIters $ putStrLn ""
+        evolveBoardMut (edge (w, h)) board >>= writeIORef boardRef
 
 parse ctor = map (ctor . fst) . reads
 data Opt = Width Int | Height Int | Iterations Int | Seed Int | Edgehandling String | ShowHelp
