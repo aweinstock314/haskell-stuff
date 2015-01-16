@@ -30,20 +30,11 @@ makeRandomBoard arrayCtor gen (w, h) density =
     arrayCtor ((0, 0), (w-1, h-1))
     (map (< density) (randoms gen :: [Double]))
 
-{-
-dotimes = flip mapM_ . enumFromTo 0 . subtract 1
-dogrid (w, h) eachIndex eachLine = do
-    dotimes h (\ y -> do
-        dotimes w (\ x -> do
-            eachIndex x y
-            )
-        eachLine
-        )
--}
-
-
 dogrid :: (Int, Int) -> (Int -> Int -> IO ()) -> IO () -> IO ()
-dogrid (w, h) eachIndex eachLine = V.sequence_ $ V.generate h id >>= (`V.snoc` eachLine) . (\y -> V.generate w id >>= \x -> return $ eachIndex x y)
+dogrid (w, h) eachIndex eachLine = loop 0 0 where
+    loop x y | y == h = return ()
+    loop x y | x == w = eachLine >> loop 0 (y+1)
+    loop x y = eachIndex x y >> loop (x+1) y
 
 showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
 
