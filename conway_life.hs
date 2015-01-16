@@ -11,11 +11,11 @@ import System.Console.GetOpt
 import System.Environment
 import System.IO
 import System.Random
-import qualified System.IO.Unsafe
-import qualified Data.Map
+import qualified System.IO.Unsafe as UNS
+import qualified Data.Map as M
 import MkCached
 import qualified Data.Vector as V
-import qualified Data.Vector.Fusion.Stream as S
+import Control.DeepSeq
 
 intOfBool :: Bool -> Int
 intOfBool True = 1
@@ -50,15 +50,34 @@ showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
 wrapIdx, truncIdx :: (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
 truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> return (x, y)
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
-adjacents :: (Int, Int) -> S.Stream (Int, Int)
-adjacents (x, y) = S.fromList $! do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
+adjacents :: (Int, Int) -> V.Vector (Int, Int)
+adjacents (x, y) = V.fromList $! do { dx <- [-1..1]; dy <- [-1..1]; delete (x, y) $ return (x+dx, y+dy) }
 
-$(mkCachedAutoTyped "adjacents" "cachedAdjacents")
+vMapMaybe f s = V.map fromJust . V.filter isJust $ V.map f s
 
-vMapMaybe f s = S.map fromJust . S.filter isJust $ S.map f s
+{-
+WARNING: cachedNeighborIdxs is not referentially 
+transparent (since it doesn't key based on the function, 
+since functions are not members of the Ord typeclass).
+
+This works in practice because handleEdges is chosen at the 
+start (as either wrapIdx (w, h) or truncIdx (w, h)) and not 
+changed mid-execution.
+-}
+{-# NOINLINE neighborIdxsCache #-}
+neighborIdxsCache = UNS.unsafePerformIO $ newIORef M.empty
+cachedNeighborIdxs handleEdges (x, y) = UNS.unsafePerformIO $ do
+    cache <- readIORef neighborIdxsCache
+    case M.lookup (x, y) cache of
+        Just idxs -> return idxs
+        Nothing -> do
+            let idxs = vMapMaybe handleEdges $ adjacents (x, y)
+            idxs `deepseq` do
+                writeIORef neighborIdxsCache $ M.insert (x, y) idxs cache
+                return idxs
 
 sumOfNeighbors :: ((Int, Int) -> Maybe (Int, Int)) -> UArray (Int, Int) Bool -> (Int, Int) -> Int
-sumOfNeighbors handleEdges brd = S.foldr (+) 0 . S.map (intOfBool . (brd!)) . vMapMaybe handleEdges . cachedAdjacents
+sumOfNeighbors handleEdges brd = V.sum . V.map (intOfBool . (brd!)) . cachedNeighborIdxs handleEdges
 
 amapi :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
 amapi f arr = array (bounds arr) (map (\(i, e) -> (i, f i e)) (assocs arr))
@@ -90,7 +109,7 @@ showAutomaton (w, h, loop, edge, seedgen) = do
 showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")
 
 sumOfNeighborsMut :: ((Int, Int) -> Maybe (Int, Int)) -> IOUArray (Int, Int) Bool -> (Int, Int) -> IO Int
-sumOfNeighborsMut handleEdges brd = fmap V.sum . V.mapM (fmap intOfBool . readArray brd) . V.fromList . S.toList . vMapMaybe handleEdges . cachedAdjacents
+sumOfNeighborsMut handleEdges brd = fmap V.sum . V.mapM (fmap intOfBool . readArray brd) . cachedNeighborIdxs handleEdges
 
 mapArrayI :: (MArray a e m, MArray a e' m, Ix i) => (i -> e -> m e') -> a i e -> m (a i e')
 mapArrayI f arr = do
