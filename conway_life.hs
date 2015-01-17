@@ -44,7 +44,6 @@ wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
 adjacents :: (Int, Int) -> [(Int, Int)]
 adjacents (x, y) = [(x+dx, y+dy) | dx <- [-1..1], dy <- [-1..1], (dx, dy) /= (0, 0)]
 
-
 {-
 WARNING: cachedNeighborIdxs is not referentially 
 transparent (since it doesn't key based on the function, 
@@ -79,22 +78,20 @@ successorCell True = (`elem` [2, 3])
 successorCell False = (== 3)
 
 evolveBoard handleEdges brd = amapi (\(x, y) alive ->
-    let neighborsAlive = sumOfNeighbors handleEdges brd (x, y) in
-    successorCell alive neighborsAlive
+    successorCell alive $ sumOfNeighbors handleEdges brd (x, y)
     ) brd
 
 linesBetweenIters = 1
 -- Sets the buffering to dump a whole board to stdout at once, to make animation appear smooth(er)
 setBoardBuffering w h = hSetBuffering stdout . BlockBuffering . Just $ (w+1)*h + linesBetweenIters
+showSpacing = replicateM_ linesBetweenIters $ putStrLn ""
 
 showAutomaton (w, h, loop, edge, seedgen) = do
     setBoardBuffering w h
     gen <- fromMaybe getStdGen $ liftM return seedgen
-    board <- newIORef (makeRandomBoard listArray gen (w, h) 0.3 :: UArray (Int, Int) Bool)
-    loop $ do
-        readIORef board >>= showBoard (w, h)
-        replicateM_ linesBetweenIters $ putStrLn ""
-        modifyIORef board $ evolveBoard (edge (w, h))
+    let initBoard = makeRandomBoard listArray gen (w, h) 0.3 :: UArray (Int, Int) Bool
+    let boards = iterate (evolveBoard (edge (w, h))) initBoard
+    loop $ map (\brd -> showBoard (w, h) brd >> showSpacing) boards
 
 showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")
 
@@ -117,14 +114,15 @@ evolveBoardMut handleEdges brd = mapArrayI (\(x, y) alive -> do
     return $ successorCell alive neighborsAlive
     ) brd
 
+singletonList x = [x]
 showAutomatonMut (w, h, loop, edge, seedgen) = do
     setBoardBuffering w h
     gen <- fromMaybe getStdGen $ liftM return seedgen
     boardRef <- (makeRandomBoard newListArray gen (w, h) 0.3 :: IO (IOUArray (Int, Int) Bool)) >>= newIORef
-    loop $ do
+    loop . cycle . singletonList $ do
         board <- readIORef boardRef
         showBoardMut (w, h) board
-        replicateM_ linesBetweenIters $ putStrLn ""
+        showSpacing
         evolveBoardMut (edge (w, h)) board >>= writeIORef boardRef
 
 parse ctor = map (ctor . fst) . reads
@@ -142,14 +140,14 @@ options = [
 processOpts = foldl (\(w, h, loop, edge, seed) opt -> case opt of
         Width w' -> (w', h, loop, edge, seed)
         Height h' -> (w, h', loop, edge, seed)
-        Iterations i -> (w, h, replicateM_ i :: IO a -> IO (), edge, seed)
+        Iterations i -> (w, h, sequence_ . take i, edge, seed)
         Seed s -> (w, h, loop, edge, Just $ mkStdGen s)
         Edgehandling s -> case s of
             "wrap" -> (w, h, loop, wrapIdx, seed)
             "trunc" -> (w, h, loop, truncIdx, seed)
             _ -> error $ "Invalid edge handling mode: " ++ s
         ShowHelp -> error $ usageInfo "" options
-    ) (50, 50, forever, wrapIdx, Nothing)
+    ) (50, 50, sequence_, wrapIdx, Nothing)
 
 main = do
     args <- getArgs
