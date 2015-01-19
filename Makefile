@@ -2,18 +2,19 @@ TARGETS=conway_life cheatingquine
 .PHONY: all clean
 
 PROFFLAGS=-prof -rtsopts -auto-all -caf-all
+OPTFLAGS=-O2 -Odph -fllvm
 
 all: ${TARGETS}
 
 %: %.hs
-	ghc -O2 $^
+	ghc ${OPTFLAGS} $^
 
 %.simpl: %.hs
-	ghc -O2 -fforce-recomp -ddump-simpl $^ > $@
+	ghc ${OPTFLAGS} -fforce-recomp -ddump-simpl -dsuppress-all $^ > $@
 
 %.profbuild: %.hs
-	ghc -O2 $^
-	ghc -O2 ${PROFFLAGS} -osuf p_o $^
+	ghc ${OPTFLAGS} $^
+	ghc ${OPTFLAGS} ${PROFFLAGS} -osuf p_o $^
 	echo 'Run with "+RTS -sstderr -p" to get a .prof report.'
 
 clean:
