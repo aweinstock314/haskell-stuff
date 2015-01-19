@@ -1,5 +1,6 @@
 #!/usr/bin/env runghc
 import Data.List
+import Text.Printf
 
 data Expr =
       Add Expr Expr
@@ -8,7 +9,20 @@ data Expr =
     | Mat3x3 ((Expr, Expr, Expr), (Expr, Expr, Expr), (Expr, Expr, Expr))
     | Var String
     | Lit Double
-    deriving (Eq, Show)
+    deriving (Eq)
+
+instance Show Expr where
+    show (Add e1 e2) = printf "(%s)+(%s)" (show e1) (show e2)
+    show (Mul e1 e2) = printf "(%s)*(%s)" (show e1) (show e2)
+    show (Neg e) = printf "(-%s)" (show e)
+    show (Mat3x3 ((a11, a12, a13),
+                  (a21, a22, a23),
+                  (a31, a32, a33))) = printf "(Mat3x3 [[%s, %s, %s], [%s, %s, %s], [%s, %s, %s]])"
+        (show a11) (show a12) (show a13)
+        (show a21) (show a22) (show a23)
+        (show a31) (show a32) (show a33)
+    show (Var name) = name
+    show (Lit x) = show x
 
 -- TODO: simplify and generalize matrix handling
 matrixMultiply (Mat3x3 ((a11, a12, a13),
@@ -18,9 +32,9 @@ matrixMultiply (Mat3x3 ((a11, a12, a13),
                         (b21, b22, b23),
                         (b31, b32, b33))) =
     Mat3x3 $ let ((+), (*)) = (Add, Mul) in
-    (((a11*b11 + a12*b21 + a13*b31), (a11*b12 + a12*b22 + a13*b32), (a11*b13 + a12*b23 + a13*b33)),
-     ((a21*b11 + a22*b21 + a23*b31), (a21*b12 + a22*b22 + a23*b32), (a21*b13 + a22*b23 + a23*b33)),
-     ((a31*b11 + a32*b21 + a33*b31), (a31*b12 + a32*b22 + a33*b32), (a31*b13 + a32*b23 + a33*b33)))
+    ((((a11*b11)+(a12*b21)+(a13*b31)), ((a11*b12)+(a12*b22)+(a13*b32)), ((a11*b13)+(a12*b23)+(a13*b33))),
+     (((a21*b11)+(a22*b21)+(a23*b31)), ((a21*b12)+(a22*b22)+(a23*b32)), ((a21*b13)+(a22*b23)+(a23*b33))),
+     (((a31*b11)+(a32*b21)+(a33*b31)), ((a31*b12)+(a32*b22)+(a33*b32)), ((a31*b13)+(a32*b23)+(a33*b33))))
 
 simplify (Add (Lit 0) x) = simplify x
 simplify (Add x (Lit 0)) = simplify x
@@ -32,6 +46,10 @@ simplify (Mul (Lit 1) x) = simplify x
 simplify (Mul x (Lit 1)) = simplify x
 
 simplify (Neg (Neg x)) = simplify x
+
+simplify (Add x y) = Add (simplify x) (simplify y)
+simplify (Mul x y) = Mul (simplify x) (simplify y)
+simplify (Neg x) = Neg (simplify x)
 
 simplify (Mat3x3 ((a11, a12, a13),
                   (a21, a22, a23),
@@ -65,6 +83,6 @@ iterateToConvergence f init = unfoldr aux Nothing where
     mkState x = Just (x, Just x)
 
 showDerivation :: Show a => [a] -> IO ()
-showDerivation = mapM_ print
+showDerivation = mapM_ (\x -> print x >> putStrLn "")
 
 main = showDerivation $ iterateToConvergence simplify expr3
