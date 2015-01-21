@@ -51,49 +51,43 @@ void showBoard(size_t w, size_t h, bool* brd) {
     dogrid(w, h, &showBoard_eachIndex, &showBoard_eachLine, &sB_c);
 }
 
-struct point { size_t x, y; };
-struct point* truncIdx(size_t w, size_t h, size_t x, size_t y) {
-    if((0 <= x) && (x < w) && (0 <= y) && (y < h)) {
-        struct point* ret = malloc(sizeof(struct point));
-        ret->x = x; ret->y = y;
-        return ret;
-    } else { return NULL; }
-}
 long wrap(long val, long lo, long hi) {
     // use longs to get negative numbers (possible issues with values > approx. 2 billion, but ignore for now)
     if(val < lo) { return hi-1; }
     if(val >= hi) { return lo; }
     return val;
 }
-struct point* wrapIdx(size_t w, size_t h, size_t x, size_t y) {
-    struct point* ret = malloc(sizeof(struct point));
-    //printf("w, h = %d, %d\n", w, h);
-    ret->x = wrap(x, 0, w); ret->y = wrap(y, 0, h);
-    //printf("wrapping (%d, %d) to (%d, %d)\n", x, y, ret->x, ret->y);
-    return ret;
+
+int truncIdx(size_t w, size_t h, size_t* px, size_t* py) {
+    int x = *px, y = *py;
+    return ((0 <= x) && (x < w) && (0 <= y) && (y < h));
+}
+int wrapIdx(size_t w, size_t h, size_t* x, size_t* y) {
+    *x = wrap(*x, 0, w);
+    *y = wrap(*y, 0, h);
+    return 1;
 }
 
 // this is written all-in-one (rather than as abstract 
 //  stages, composed together) because writing the stages 
 //   seperately would be much messier in C
-int sumOfNeighbors(struct point* (*handleEdges)(size_t, size_t, size_t, size_t), bool* brd,
+int sumOfNeighbors(int (*handleEdges)(size_t, size_t, size_t*, size_t*), bool* brd,
                     size_t w, size_t h, size_t x, size_t y) {
     int sum = 0;
+    size_t tmpx, tmpy;
     for(int dx=-1; dx<=1; dx++) {
         for(int dy=-1; dy<=1; dy++) {
             if((dx == 0) && (dy == 0)) { continue; }
-            struct point* adjusted = (*handleEdges)(w, h, x+dx, y+dy); // maybe worry about underflow bugs?
-            if(!adjusted) { continue; }
-            //printf("sON(%d, %d), (dx %d, dy %d), (adj %d, adj %d)\n", x, y, dx, dy, adjusted->x, adjusted->y);
-            //printf("brd[%d * %d + %d (== %d)] = %d\n", adjusted->y, w, adjusted->x, adjusted->y * w + adjusted->x, brd[adjusted->y * w + adjusted->x]);
-            if(brd[adjusted->y * w + adjusted->x]) { sum += 1; }
-            free(adjusted);
+            tmpx = x+dx; tmpy = y+dy;
+            if((*handleEdges)(w, h, &tmpx, &tmpy) && brd[tmpy * w + tmpx]) {
+                sum += 1;
+            }
         }
     }
     return sum;
 }
 
-bool* evolveBoard(struct point* (*handleEdges)(size_t, size_t, size_t, size_t), bool* brd, size_t w, size_t h) {
+bool* evolveBoard(int (*handleEdges)(size_t, size_t, size_t*, size_t*), bool* brd, size_t w, size_t h) {
     bool* newBrd = malloc(w*h*sizeof(bool));
     for(size_t y=0; y<h; y++) {
         for(size_t x=0; x<w; x++) {
@@ -110,13 +104,18 @@ bool* evolveBoard(struct point* (*handleEdges)(size_t, size_t, size_t, size_t), 
 }
 
 void showAutomaton(size_t w, size_t h, size_t* iters,
-                    struct point* (*handleEdges)(size_t, size_t, size_t, size_t)) {
+                    int (*handleEdges)(size_t, size_t, size_t*, size_t*)) {
     bool* brd = makeRandomBoard(w, h, 0.3);
+    size_t buf_size = ((w+1)*h+1)*sizeof(char);
+    char* output_buf = malloc(buf_size);
+    setbuffer(stdout, output_buf, buf_size);
     for(size_t i=0; (!iters) || (i<*iters); i++) {
         showBoard(w, h, brd);
         putchar('\n');
         brd = evolveBoard(handleEdges, brd, w, h);
     }
+    fflush(stdout);
+    free(output_buf);
     free(brd);
 }
 
@@ -139,7 +138,7 @@ void show_usage(const char* progname) {
 #undef SHOW_OPT
 }
 
-int parse_edgehandling(const char* str, struct point* (**handleEdges)(size_t, size_t, size_t, size_t)) {
+int parse_edgehandling(const char* str, int (**handleEdges)(size_t, size_t, size_t*, size_t*)) {
     if(!strcmp(str, "wrap")) { *handleEdges = &wrapIdx; return 0; }
     if(!strcmp(str, "trunc")) { *handleEdges = &truncIdx; return 0; }
     return 1;
@@ -163,7 +162,7 @@ const struct option long_options[] = {
 
 int main(int argc, char** argv) {
     size_t w=50, h=50, *iters=NULL;
-    struct point* (*handleEdges)(size_t, size_t, size_t, size_t) = &wrapIdx;
+    int (*handleEdges)(size_t, size_t, size_t*, size_t*) = &wrapIdx;
     unsigned int random_seed = time(NULL);
     int c;
     while(c=GETOPT_INVOKATION, (c != -1)) {
