@@ -1,12 +1,12 @@
 module ClassicalCrypto where
-import Control.Arrow
 import Data.Char
 import Data.List
 import qualified Data.Map as M
 
-predAnd p1 p2 = uncurry (&&) . (p1 &&& p2)
+(all_of, any_of) = ((all `of_`), (any `of_`)) where
+    (f `of_` predicates) x = f id $ map ($ x) predicates
 
-toLowercaseLetters = filter (predAnd isAlpha isAscii) . map toLower
+toLowercaseLetters = filter (all_of [isAlpha, isAscii]) . map toLower
 
 caesarCipher shift = map (chr . (`mod` 256) . (+ shift) . ord)
 
@@ -20,5 +20,3 @@ lettersByFrequency = concatMap snd . M.toDescList . transposeMap . occurrences .
 
 -- http://upload.wikimedia.org/wikipedia/commons/b/b0/English_letter_frequency_%28frequency%29.svg
 englishLettersByFrequency = "etaoinshrdlcumwfgypbvkjxqz"
-
-
