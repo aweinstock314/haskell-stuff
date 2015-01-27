@@ -43,6 +43,17 @@ truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> r
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
 adjacents :: (Int, Int) -> [(Int, Int)]
 adjacents (x, y) = [(x+dx, y+dy) | dx <- [-1..1], dy <- [-1..1], (dx, dy) /= (0, 0)]
+neighborIdxs handleEdges pt = V.fromList . mapMaybe handleEdges $ adjacents pt
+
+cacheLookup cacheref f x = do
+    cache <- readIORef cacheref
+    case M.lookup x cache of
+        Just y -> return y
+        Nothing -> do
+            let y = f x
+            y `deepseq` do
+                writeIORef cacheref $ M.insert x y cache
+                return y
 
 {-
 WARNING: cachedNeighborIdxs is not referentially 
@@ -55,15 +66,7 @@ changed mid-execution.
 -}
 {-# NOINLINE neighborIdxsCache #-}
 neighborIdxsCache = UNS.unsafePerformIO $ newIORef M.empty
-cachedNeighborIdxs handleEdges (x, y) = UNS.unsafePerformIO $ do
-    cache <- readIORef neighborIdxsCache
-    case M.lookup (x, y) cache of
-        Just idxs -> return idxs
-        Nothing -> do
-            let idxs = V.fromList . mapMaybe handleEdges $ adjacents (x, y)
-            idxs `deepseq` do
-                writeIORef neighborIdxsCache $ M.insert (x, y) idxs cache
-                return idxs
+cachedNeighborIdxs handleEdges pt = UNS.unsafePerformIO $ cacheLookup neighborIdxsCache (neighborIdxs handleEdges) pt
 
 sumOfNeighbors :: ((Int, Int) -> Maybe (Int, Int)) -> UArray (Int, Int) Bool -> (Int, Int) -> Int
 sumOfNeighbors handleEdges brd = V.sum . V.map (intOfBool . (brd!)) . cachedNeighborIdxs handleEdges
