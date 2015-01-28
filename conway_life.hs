@@ -47,13 +47,8 @@ neighborIdxs handleEdges pt = V.fromList . mapMaybe handleEdges $ adjacents pt
 
 cacheLookup cacheref f x = do
     cache <- readIORef cacheref
-    case M.lookup x cache of
-        Just y -> return y
-        Nothing -> do
-            let y = f x
-            y `deepseq` do
-                writeIORef cacheref $ M.insert x y cache
-                return y
+    let calcAndCache = (let y = f x in y `deepseq` ((writeIORef cacheref $ M.insert x y cache) >> return y))
+    maybe calcAndCache return $ M.lookup x cache
 
 {-
 WARNING: cachedNeighborIdxs is not referentially 
@@ -117,12 +112,11 @@ evolveBoardMut handleEdges brd = mapArrayI (\(x, y) alive -> do
     return $ successorCell alive neighborsAlive
     ) brd
 
-singletonList x = [x]
 showAutomatonMut (w, h, loop, edge, seedgen) = do
     setBoardBuffering w h
     gen <- fromMaybe getStdGen $ liftM return seedgen
     boardRef <- (makeRandomBoard newListArray gen (w, h) 0.3 :: IO (IOUArray (Int, Int) Bool)) >>= newIORef
-    loop . cycle . singletonList $ do
+    loop . cycle . return $ do
         board <- readIORef boardRef
         showBoardMut (w, h) board
         showSpacing
