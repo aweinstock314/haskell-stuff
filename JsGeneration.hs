@@ -21,6 +21,7 @@ data JS =
     | Call JS [JS]
     | Lam [String] ([JS] -> [JS])
     | Return JS
+    | Method String JS [JS]
 
 lit :: Show a => a -> JS
 lit = Lit . show
@@ -38,6 +39,7 @@ instance Show JS where
     show (Call name args) = mconcat $ mconcat [[show name], ["("], intersperse "," $ map show args, [")"]]
     show (Lam args generator) = mconcat $ mconcat [["function("], intersperse ", " args, ["){"], [sequencify . generator $ map Var args], ["}"]]
     show (Return x) = mconcat ["return ", show x]
+    show (Method m a b) = mconcat [show a, ".", m, "(", mconcat . intersperse ", " $ map show b, ")"]
 
 assign = BinOp "="
 increment x = BinOp "+=" x (lit 1)
@@ -53,3 +55,4 @@ jsFactorial = let (res, i) = (Var "res", Var "i") in
     ]
 
 jsUsesFactorial = sequencify $ [jsFactorial] ++ map (call "alert" . return . call "factorial" . return . lit) [1..10]
+jsUsesFactorial2 = sequencify $ [jsFactorial, Method "map" (lit [1..10]) [Lam ["n"] (\[n] -> [call "alert" [call "factorial" [n]]])]]

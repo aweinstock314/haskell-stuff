@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module MkCached (mkCached, mkCachedTyped, mkCachedAutoTyped) where
 import Data.IORef
 import Language.Haskell.TH
@@ -8,11 +7,11 @@ import qualified Data.Map as M
 
 {-
 the interface for inline declarations changes between 
-template-haskell-2.7.0.0 (debian's version) and 
+template-haskell-2.7.0.0 (debian stable (wheezy)'s version) and 
 template-haskell-2.9.0.0 (most current)
 -}
 declareNoInline :: Name -> Q Pragma
---declareNoInline name = InlineP name NoInline FunLike AllPhases
+--declareNoInline name = return $ InlineP name NoInline FunLike AllPhases
 declareNoInline name = fmap (InlineP name) $ inlineSpecNoPhase False False
 
 cacheCreationExp (Just ty) = [| unsafePerformIO . newIORef $ (M.empty :: $ty) |]
