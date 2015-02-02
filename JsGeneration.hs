@@ -1,7 +1,9 @@
 --{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
 module JsGeneration where
 import Data.List
 import Data.Monoid
+import Language.Javascript.JMacro
 
 {-
 data JS a where
@@ -56,3 +58,6 @@ jsFactorial = let (res, i) = (Var "res", Var "i") in
 
 jsUsesFactorial = sequencify $ [jsFactorial] ++ map (call "alert" . return . call "factorial" . return . lit) [1..10]
 jsUsesFactorial2 = sequencify $ [jsFactorial, Method "map" (lit [1..10]) [Lam ["n"] (\[n] -> [call "alert" [call "factorial" [n]]])]]
+
+jsFactorial' = [jmacro|factorial = function(n){var res=1;for(var i=n;i>0;i--){res*=i;}return res;}|]
+jsUsesFactorial' = renderJs $ jsFactorial' <> [jmacro| `[1..10]::[Int]`.map(\x->alert(factorial(x)))|]
