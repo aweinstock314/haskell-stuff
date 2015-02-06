@@ -57,19 +57,21 @@ document.getElementById(`escapingDiv::String`).appendChild(x);
 heartBeatServerUrl :: IsString a => a
 heartBeatServerUrl = "ws://localhost:8501"
 
+isPrime n = not $ any (divides n) [2..(floor. sqrt . fromIntegral) n] where divides n i = (n `mod` i) == 0
+
 heartBeatServer portNumber = WS.runServer "0.0.0.0" portNumber $ \ pending -> do
     sock <- WS.acceptRequest pending
     putStrLn "Received a websocket connection."
-    forM_ [1..] $ \i -> do
+    forM_ (filter isPrime [1..]) $ \i -> do
         WS.sendTextData sock ("Pulse: " <> (lbs $ show i) <> "\n")
-        delayMs 10
+        delayMs 100
 
 -- https://developer.mozilla.org/en-US/docs/WebSockets/Writing_WebSocket_client_applications
 setupHeartBeatClient = [jmacro|
 var sock = new WebSocket(`heartBeatServerUrl::String`);
 var tableRoot = document.getElementById(`heartBeatTable::String`);
 var WIDTH = 10;
-var HEIGHT = 10;
+var HEIGHT = 30;
 var cells = new Array(HEIGHT);
 for(var y=0; y<HEIGHT; y++) {
     var row = document.createElement('tr');
