@@ -9,23 +9,13 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Text.Blaze.Html.Renderer.Utf8
+import WebUtils
 import qualified Data.ByteString.Lazy as L
 import qualified Network.WebSockets as WS
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
-import qualified Text.Blaze.Internal
-import qualified Text.PrettyPrint.Leijen.Text as R
 
 lbs = L.pack . map (fromIntegral.ord)
-delayMs = threadDelay . (*) 1000
-
-onloadDo :: (JsToDoc a, JMacro a, Text.Blaze.Internal.Attributable c) => c -> a -> c
-onloadDo = flip $ flip (H.!) . A.onload . H.stringValue . show . R.renderOneLine . renderJs
-
-embedScript, showScript :: (JsToDoc a, JMacro a) => a -> H.Markup
-embedScript = H.script . H.string . show . R.renderOneLine . renderJs
-showScript = H.pre . H.string . show . renderJs
-
 factorialsDiv, escapingDiv, heartBeatDiv, heartBeatTable :: IsString a => a
 factorialsDiv = "factorialsDiv"
 escapingDiv = "escapingDiv"
@@ -65,24 +55,6 @@ heartBeatServer portNumber = WS.runServer "0.0.0.0" portNumber $ \ pending -> do
     forM_ (filter isPrime [1..]) $ \i -> do
         WS.sendTextData sock ("Pulse: " <> (lbs $ show i) <> "\n")
         delayMs 100
-
-mkTable :: Integer -> Integer -> JExpr
-mkTable width height = [jmacroE|
-function(tableRoot) {
-    var cells = new Array(`height`);
-    for(var y=0; y<`height`; y++) {
-        var row = document.createElement('tr');
-        cells[y] = new Array(`width`);
-        tableRoot.appendChild(row)
-        for(var x=0; x<`width`; x++) {
-            cells[y][x] = document.createElement('td');
-            cells[y][x].textContent = 'blank-ish';
-            row.appendChild(cells[y][x]);
-        }
-    }
-    return cells;
-}
-|]
 
 -- https://developer.mozilla.org/en-US/docs/WebSockets/Writing_WebSocket_client_applications
 setupHeartBeatClient width height = [jmacro|
