@@ -15,7 +15,6 @@ import qualified Network.WebSockets as WS
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
-lbs = L.pack . map (fromIntegral.ord)
 factorialsDiv, escapingDiv, heartBeatDiv, heartBeatTable :: IsString a => a
 factorialsDiv = "factorialsDiv"
 escapingDiv = "escapingDiv"
@@ -60,7 +59,7 @@ heartBeatServer portNumber = WS.runServer "0.0.0.0" portNumber $ \ pending -> do
 setupHeartBeatClient width height = [jmacro|
 var sock = new WebSocket(`heartBeatServerUrl::String`);
 var tableRoot = document.getElementById(`heartBeatTable::String`);
-var cells = `mkTable width height`(tableRoot);
+var cells = `mkTable width height "blank-ish"`(tableRoot);
 var xIdx = 0;
 var yIdx = 0;
 sock.onmessage = function(event) {
