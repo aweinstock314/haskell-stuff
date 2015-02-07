@@ -66,23 +66,29 @@ heartBeatServer portNumber = WS.runServer "0.0.0.0" portNumber $ \ pending -> do
         WS.sendTextData sock ("Pulse: " <> (lbs $ show i) <> "\n")
         delayMs 100
 
+mkTable :: Integer -> Integer -> JExpr
+mkTable width height = [jmacroE|
+function(tableRoot) {
+    var cells = new Array(`height`);
+    for(var y=0; y<`height`; y++) {
+        var row = document.createElement('tr');
+        cells[y] = new Array(`width`);
+        tableRoot.appendChild(row)
+        for(var x=0; x<`width`; x++) {
+            cells[y][x] = document.createElement('td');
+            cells[y][x].textContent = 'blank-ish';
+            row.appendChild(cells[y][x]);
+        }
+    }
+    return cells;
+}
+|]
+
 -- https://developer.mozilla.org/en-US/docs/WebSockets/Writing_WebSocket_client_applications
-setupHeartBeatClient = [jmacro|
+setupHeartBeatClient width height = [jmacro|
 var sock = new WebSocket(`heartBeatServerUrl::String`);
 var tableRoot = document.getElementById(`heartBeatTable::String`);
-var WIDTH = 10;
-var HEIGHT = 30;
-var cells = new Array(HEIGHT);
-for(var y=0; y<HEIGHT; y++) {
-    var row = document.createElement('tr');
-    cells[y] = new Array(WIDTH);
-    tableRoot.appendChild(row)
-    for(var x=0; x<WIDTH; x++) {
-        cells[y][x] = document.createElement('td');
-        cells[y][x].textContent = 'blank-ish';
-        row.appendChild(cells[y][x]);
-    }
-}
+var cells = `mkTable width height`(tableRoot);
 var xIdx = 0;
 var yIdx = 0;
 sock.onmessage = function(event) {
@@ -91,9 +97,9 @@ sock.onmessage = function(event) {
     hbDiv.appendChild(x);*/
     var node = cells[yIdx][xIdx];
     node.textContent = event.data;
-    if(++xIdx >= WIDTH) {
+    if(++xIdx >= `width`) {
         xIdx = 0;
-        if(++yIdx >= HEIGHT) {
+        if(++yIdx >= `height`) {
             yIdx = 0;
         }
     }
@@ -101,7 +107,7 @@ sock.onmessage = function(event) {
 |]
 
 defineDoStuff =
-    let stuff = populateDivWithFactorials <> [jmacro|alert("This is a message box!");|] <> escapingTest <> setupHeartBeatClient
+    let stuff = populateDivWithFactorials <> [jmacro|alert("This is a message box!");|] <> escapingTest <> setupHeartBeatClient 10 30
     in [jmacro| function !doStuff(){`stuff`;}|]
 
 page = H.docTypeHtml $ do
