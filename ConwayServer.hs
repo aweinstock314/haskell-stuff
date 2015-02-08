@@ -24,9 +24,9 @@ import qualified Text.Blaze.Html5.Attributes as A
 cellStr True = "#"
 cellStr False = " "
 
-serverUrl, cellTable :: IsString a => a
+serverUrl, cellDiv :: IsString a => a
 serverUrl = "ws://localhost:8503"
-cellTable = "cellTable"
+cellDiv = "cellDiv"
 
 simpleConwayServer gen (w, h) portNumber = WS.runServer "0.0.0.0" portNumber $ \pending -> do
     sock <- WS.acceptRequest pending
@@ -40,17 +40,21 @@ simpleConwayServer gen (w, h) portNumber = WS.runServer "0.0.0.0" portNumber $ \
         delayMs 250
 
 jsDefinitions (w, h) = [jmacro|
+// http://stackoverflow.com/questions/3955229/remove-all-child-elements-of-a-dom-node-in-javascript
+function removeAllChildren(node) {
+    while(node.lastChild) {
+        node.removeChild(node.lastChild);
+    }
+}
+
 function !simpleConwayClient() {
-var sock = new WebSocket(`serverUrl::String`);
-var tableRoot = document.getElementById(`cellTable::String`);
-var cells = `mkTable w h ""`(tableRoot);
-sock.onmessage = function(event) {
-    for(var y=0; y < `h`; y++) {
-        for(var x=0; x < `w`; x++) {
-            var node = cells[y][x];
+    var sock = new WebSocket(`serverUrl::String`);
+    var cellDivVar = document.getElementById(`cellDiv::String`);
+    sock.onmessage = function(event) {
+        var tableRoot = document.createElement('table');
+        var cells = `mkTable w h`(tableRoot, function(node, x, y) {
             var ch = event.data[y*`w`+x];
             node.textContent = ch;
-            //node.style = (ch === '#') ? "{color: #ffffff; background-color: #000000;}" : "{color: #000000; background-color: #ffffff;}";
             if(ch === '#') {
                 node.style.color = '#ffffff';
                 node.style.backgroundColor = '#000000';
@@ -59,9 +63,10 @@ sock.onmessage = function(event) {
                 node.style.color = '#000000';
                 node.style.backgroundColor = '#ffffff';
             }
-        }
+        });
+        removeAllChildren(cellDivVar);
+        cellDiv.appendChild(tableRoot);
     }
-}
 }
 |]
 
@@ -70,7 +75,7 @@ page (w, h) = H.docTypeHtml $ do
         H.title "Conway's game of life"
         embedScript $ jsDefinitions (w, h)
     H.body `onloadDo` [jmacroE|simpleConwayClient()|] $ do
-        H.pre $ H.table "" H.! A.id cellTable
+        H.pre $ H.div "" H.! A.id cellDiv
 
 pageServer (w, h) request respond = respond $ responseLBS status200 [] $ renderHtml $ page (w, h)
 

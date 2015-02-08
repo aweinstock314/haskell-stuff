@@ -20,9 +20,9 @@ embedScript = H.script . H.string . show . R.renderOneLine . renderJs
 showScript = H.pre . H.string . show . renderJs
 
 
-mkTable :: Integer -> Integer -> String -> JExpr
-mkTable width height defaultStr = [jmacroE|
-function(tableRoot) {
+mkTable :: Integer -> Integer -> JExpr
+mkTable width height = [jmacroE|
+function(tableRoot, callback) {
     var cells = new Array(`height`);
     for(var y=0; y<`height`; y++) {
         var row = document.createElement('tr');
@@ -30,7 +30,7 @@ function(tableRoot) {
         tableRoot.appendChild(row)
         for(var x=0; x<`width`; x++) {
             cells[y][x] = document.createElement('td');
-            cells[y][x].textContent = `defaultStr`;
+            callback(cells[y][x], x, y);
             row.appendChild(cells[y][x]);
         }
     }

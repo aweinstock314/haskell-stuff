@@ -59,13 +59,10 @@ heartBeatServer portNumber = WS.runServer "0.0.0.0" portNumber $ \ pending -> do
 setupHeartBeatClient width height = [jmacro|
 var sock = new WebSocket(`heartBeatServerUrl::String`);
 var tableRoot = document.getElementById(`heartBeatTable::String`);
-var cells = `mkTable width height "blank-ish"`(tableRoot);
+var cells = `mkTable width height`(tableRoot, function(node, x, y){node.textContent = "blank-ish";});
 var xIdx = 0;
 var yIdx = 0;
 sock.onmessage = function(event) {
-    /*var hbDiv = document.getElementById(`heartBeatDiv::String`);
-    var x = document.createTextNode(event.data);
-    hbDiv.appendChild(x);*/
     var node = cells[yIdx][xIdx];
     node.textContent = event.data;
     if(++xIdx >= `width`) {
