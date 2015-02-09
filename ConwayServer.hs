@@ -24,9 +24,11 @@ import qualified Text.Blaze.Html5.Attributes as A
 cellStr True = "#"
 cellStr False = " "
 
-serverUrl, cellDiv :: IsString a => a
+serverUrl, cellCanvas :: IsString a => a
 serverUrl = "ws://localhost:8503"
-cellDiv = "cellDiv"
+cellCanvas = "cellCanvas"
+
+cellSize = 16 :: Int
 
 simpleConwayServer gen (w, h) portNumber = WS.runServer "0.0.0.0" portNumber $ \pending -> do
     sock <- WS.acceptRequest pending
@@ -37,7 +39,7 @@ simpleConwayServer gen (w, h) portNumber = WS.runServer "0.0.0.0" portNumber $ \
         dogrid (w, h) (\x y -> modifyIORef responseRef ((cellStr $ board!(x, y))++)) (return ())
         response <- readIORef responseRef
         WS.sendTextData sock . lbs $ reverse response
-        delayMs 250
+        delayMs 100
 
 jsDefinitions (w, h) = [jmacro|
 // http://stackoverflow.com/questions/3955229/remove-all-child-elements-of-a-dom-node-in-javascript
@@ -49,23 +51,18 @@ function removeAllChildren(node) {
 
 function !simpleConwayClient() {
     var sock = new WebSocket(`serverUrl::String`);
-    var cellDivVar = document.getElementById(`cellDiv::String`);
+    // https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Basic_usage
+    var canvas = document.getElementById(`cellCanvas::String`);
+    if(!canvas.getContext) { return; }
+    var ctx = canvas.getContext('2d');
     sock.onmessage = function(event) {
-        var tableRoot = document.createElement('table');
-        var cells = `mkTable w h`(tableRoot, function(node, x, y) {
-            var ch = event.data[y*`w`+x];
-            node.textContent = ch;
-            if(ch === '#') {
-                node.style.color = '#ffffff';
-                node.style.backgroundColor = '#000000';
+        for(var y=0; y < `w`; y++) {
+            for(var x=0; x < `h`; x++) {
+                var ch = event.data[y*`w`+x];
+                ctx.fillStyle = (ch === '#') ? 'rgb(0,0,0)' : 'rgb(200, 200, 200)';
+                ctx.fillRect(x*`cellSize`, y*`cellSize`, `cellSize`, `cellSize`);
             }
-            else {
-                node.style.color = '#000000';
-                node.style.backgroundColor = '#ffffff';
-            }
-        });
-        removeAllChildren(cellDivVar);
-        cellDiv.appendChild(tableRoot);
+        }
     }
 }
 |]
@@ -75,13 +72,13 @@ page (w, h) = H.docTypeHtml $ do
         H.title "Conway's game of life"
         embedScript $ jsDefinitions (w, h)
     H.body `onloadDo` [jmacroE|simpleConwayClient()|] $ do
-        H.pre $ H.div "" H.! A.id cellDiv
+        H.canvas "" H.! A.width (H.stringValue . show $ w*cellSize) H.! A.height (H.stringValue . show $ h*cellSize) H.! A.id cellCanvas
 
 pageServer (w, h) request respond = respond $ responseLBS status200 [] $ renderHtml $ page (w, h)
 
 main = do
     let portNumber = 8502
-    let (width, height) = (50, 50)
+    let (width, height) = (100, 100)
     gen <- getStdGen
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
     forkIO $ simpleConwayServer gen (width, height) (portNumber+1)
