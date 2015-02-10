@@ -15,8 +15,9 @@ delayMs = threadDelay . (*) 1000
 onloadDo :: (JsToDoc a, JMacro a, Text.Blaze.Internal.Attributable c) => c -> a -> c
 onloadDo = flip $ flip (H.!) . A.onload . H.stringValue . show . R.renderOneLine . renderJs
 
-embedScript, showScript :: (JsToDoc a, JMacro a) => a -> H.Markup
+embedScript, embedScriptMultiline, showScript :: (JsToDoc a, JMacro a) => a -> H.Markup
 embedScript = H.script . H.string . show . R.renderOneLine . renderJs
+embedScriptMultiline = H.script . H.string . show . renderJs
 showScript = H.pre . H.string . show . renderJs
 
 
