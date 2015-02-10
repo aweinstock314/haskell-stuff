@@ -42,7 +42,8 @@ simpleConwayServer gen (w, h) portNumber = WS.runServer "0.0.0.0" portNumber $ \
     let initBoard = makeRandomBoard listArray gen (w, h) 0.3 :: UArray (Int, Int) Bool
     forM_ (iterate (evolveBoard $ wrapIdx (w, h)) initBoard) $ \board -> do
         responseRef <- newIORef L.empty
-        dogrid (w, h) (\x y -> modifyIORef responseRef ((mkPixel $ board!(x, y))<>)) (return ())
+        lineBuf <- newIORef L.empty
+        dogrid (w, h) (\x y -> modifyIORef lineBuf ((L.take (4*fromIntegral cellSize) . L.cycle . mkPixel $ board!(x, y))<>)) (do {line <- readIORef lineBuf; replicateM_ cellSize $ modifyIORef responseRef (line<>); writeIORef lineBuf L.empty})
         response <- readIORef responseRef
         WS.sendBinaryData sock $ L.reverse response
         delayMs 10
@@ -68,7 +69,7 @@ function !simpleConwayClient() {
     bufCtx = buffer.getContext('2d');*/
     sock.onmessage = function(event) {
         var uintArr = new Uint8ClampedArray(event.data);
-        var dataBuf = new ImageData(uintArr, `w`, `h`);
+        var dataBuf = new ImageData(uintArr, `w*cellSize`, `h*cellSize`);
         ctx.putImageData(dataBuf, 0, 0);
         /*bufCtx.putImageData(dataBuf, 0, 0);
         for(var y=0; y < `h`; y++) {
