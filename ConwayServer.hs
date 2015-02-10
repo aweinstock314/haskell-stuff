@@ -55,14 +55,19 @@ function !simpleConwayClient() {
     var canvas = document.getElementById(`cellCanvas::String`);
     if(!canvas.getContext) { return; }
     var ctx = canvas.getContext('2d');
+    var buffer = document.createElement('canvas');
+    buffer.width = `w*cellSize`;
+    buffer.height = `h*cellSize`;
+    bufCtx = buffer.getContext('2d');
     sock.onmessage = function(event) {
-        for(var y=0; y < `w`; y++) {
-            for(var x=0; x < `h`; x++) {
+        for(var y=0; y < `h`; y++) {
+            for(var x=0; x < `w`; x++) {
                 var ch = event.data[y*`w`+x];
-                ctx.fillStyle = (ch === '#') ? 'rgb(0,0,0)' : 'rgb(200, 200, 200)';
-                ctx.fillRect(x*`cellSize`, y*`cellSize`, `cellSize`, `cellSize`);
+                bufCtx.fillStyle = (ch === '#') ? 'rgb(0,0,0)' : 'rgb(200, 200, 200)';
+                bufCtx.fillRect(x*`cellSize`, y*`cellSize`, `cellSize`, `cellSize`);
             }
         }
+        ctx.drawImage(buffer, 0, 0);
     }
 }
 |]
@@ -78,7 +83,7 @@ pageServer (w, h) request respond = respond $ responseLBS status200 [] $ renderH
 
 main = do
     let portNumber = 8502
-    let (width, height) = (100, 100)
+    let (width, height) = (200, 100)
     gen <- getStdGen
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
     forkIO $ simpleConwayServer gen (width, height) (portNumber+1)
