@@ -4,6 +4,7 @@ import Control.Concurrent (threadDelay)
 import Data.Char
 import Language.Javascript.JMacro
 import qualified Data.ByteString.Lazy as L
+import qualified Network.WebSockets as WS
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 import qualified Text.Blaze.Internal
@@ -20,6 +21,9 @@ embedScript = H.script . H.string . show . R.renderOneLine . renderJs
 embedScriptMultiline = H.script . H.string . show . renderJs
 showScript = H.pre . H.string . show . renderJs
 
+withAllWebsocketConnections action portNumber = WS.runServer "0.0.0.0" portNumber $ \pending -> do
+    sock <- WS.acceptRequest pending
+    action sock
 
 mkTable :: Integer -> Integer -> JExpr
 mkTable width height = [jmacroE|

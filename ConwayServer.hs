@@ -36,8 +36,7 @@ cellCanvas = "cellCanvas"
 
 cellSize = 4 :: Int
 
-simpleConwayServer gen (w, h) portNumber = WS.runServer "0.0.0.0" portNumber $ \pending -> do
-    sock <- WS.acceptRequest pending
+simpleConwayServer gen (w, h) = withAllWebsocketConnections $ \sock -> do
     putStrLn "Received a websocket connection."
     let initBoard = makeRandomBoard listArray gen (w, h) 0.3 :: UArray (Int, Int) Bool
     forM_ (iterate (evolveBoard $ wrapIdx (w, h)) initBoard) $ \board -> do
