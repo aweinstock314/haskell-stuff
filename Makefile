@@ -1,4 +1,4 @@
-TARGETS=conway_life cheatingquine
+TARGETS=ConwayLifeCLI cheatingquine
 .PHONY: all clean
 
 PROFFLAGS=-prof -rtsopts -auto-all -caf-all
