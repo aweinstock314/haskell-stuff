@@ -1,6 +1,9 @@
+#!/usr/bin/env runhaskell
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 import Control.Concurrent (forkIO, threadDelay)
+import Control.Monad.Writer
 import Data.Binary.IEEE754
+import Data.List
 import Data.Monoid
 import Data.String
 import Language.Javascript.JMacro
@@ -25,17 +28,44 @@ tau = 2 * pi
 floatsToLBS = BPut.runPut . sequence_ . map putFloat32le
 
 sineWave sampleRate seconds frequency =
-    floatsToLBS $ map step [0..numFrames-1] where
+    map step [0..numFrames-1] where
         step i = sin (frequency * tau * i / sampleRate)
         numFrames = sampleRate * seconds
 
-sineServer = withAllWebsocketConnections $ \sock -> do
+silence sampleRate seconds = replicate numFrames 0.0 where numFrames = floor $ sampleRate * seconds
+
+-- attack, decay, sustain, release are in [0,1], attack < decay < release
+-- attack, decay, release are fractions into the sample
+-- sustain is the volume between decay and release
+adsr :: Float -> Float -> Float -> Float -> [Float] -> [Float]
+adsr attack decay sustain release sample =
+    map step $ zip [0..] sample where
+    step (i, x) | i < atk = (atkVolume i) * x
+    step (i, x) | i < dec = (decVolume i) * x
+    step (i, x) | i < rel =       sustain * x
+    step (i, x)           = (relVolume i) * x
+    [atk, dec, rel] = map (*len) [attack, decay, release]
+    atkVolume i = (i/atk)
+    decVolume i = 1-((i-atk)/(dec-atk))
+    relVolume i = sustain * (1-((i-rel)/(len-rel)))
+    len = genericLength sample
+-- Eyeball test of envelope generator: zip [0..] $ adsr 0.1 0.3 0.5 0.9 $ replicate 20 1.0
+
+tune1 sampleRate = snd . runWriter $ do
+    let env = adsr 0.0 0.6 0.25 0.9
+    let freqs = [500,600..1000]
+    let freqs' = freqs <> reverse freqs
+    let freqs'' = freqs' <> map (+50) freqs'
+    forM_ freqs'' $ \freq -> do
+        tell . env $ sineWave sampleRate 0.2 freq
+        tell $ silence sampleRate 0.05
+
+tuneServer tune = withAllWebsocketConnections $ \sock -> do
     sampleRateString <- WS.receiveData sock
     case safeRead $ unlbs sampleRateString :: Maybe Float of
         Just sampleRate -> do
             putStrLn $ mconcat ["Received a websocket connection. sampleRate = ", show sampleRate]
-            let someSines = mconcat $ map (sineWave sampleRate 1) [500,600..1000]
-            WS.sendBinaryData sock someSines
+            WS.sendBinaryData sock . floatsToLBS $ tune sampleRate
         Nothing -> return ()
 
 jsDefinitions = [jmacro|
@@ -90,5 +120,5 @@ pageServer request respond = respond $ responseLBS status200 [] $ renderHtml $ p
 main = do
     let portNumber = 8504
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
-    forkIO $ sineServer (portNumber+1)
+    forkIO $ tuneServer tune1 (portNumber+1)
     run portNumber pageServer
