@@ -1,20 +1,45 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 import Control.Concurrent (forkIO, threadDelay)
+import Data.Binary.IEEE754
 import Data.Monoid
+import Data.String
 import Language.Javascript.JMacro
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Text.Blaze.Html.Renderer.Utf8
 import WebUtils
+import qualified Data.Binary.Put as BPut
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Vector.Unboxed as V
 import qualified Network.WebSockets as WS
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
+serverUrl :: IsString a => a
+serverUrl = "ws://localhost:8505"
+
+tau :: Floating a => a
+tau = 2 * pi
+
+floatsToLBS = BPut.runPut . sequence_ . map putFloat32le
+
+sineWave sampleRate seconds frequency =
+    floatsToLBS $ map step [0..numFrames-1] where
+        step i = sin (frequency * tau * i / sampleRate)
+        numFrames = sampleRate * seconds
+
+sineServer = withAllWebsocketConnections $ \sock -> do
+    sampleRateString <- WS.receiveData sock
+    case safeRead $ unlbs sampleRateString :: Maybe Float of
+        Just sampleRate -> do
+            putStrLn $ mconcat ["Received a websocket connection. sampleRate = ", show sampleRate]
+            let someSines = mconcat $ map (sineWave sampleRate 1) [500,600..1000]
+            WS.sendBinaryData sock someSines
+        Nothing -> return ()
+
 jsDefinitions = [jmacro|
-function !playBuffer(buf) {
+function playBuffer(buf) {
     // adapted from example at https://developer.mozilla.org/en-US/docs/Web/API/AudioContext.createBufferSource
     var ctx = new AudioContext();
     var audioBuffer = ctx.createBuffer(1, buf.length, ctx.sampleRate);
@@ -37,13 +62,27 @@ function !playSineScale() {
     }
     playBuffer(sineWave);
 }
+
+function !playBufferFromServer() {
+    var sampleRate = new AudioContext().sampleRate;
+    var sock = new WebSocket(`serverUrl::String`);
+    sock.binaryType = 'arraybuffer';
+    sock.onopen = function(event) {
+        sock.send(String(sampleRate));
+    };
+    sock.onmessage = function(event) {
+        var buf = new Float32Array(event.data);
+        playBuffer(buf);
+    };
+}
+
 |]
 
 page = H.docTypeHtml $ do
     H.head $ do
         H.title "Music Test"
         embedScriptMultiline jsDefinitions
-    H.body `onloadDo` [jmacroE|playSineScale()|] $ do
+    H.body `onloadDo` [jmacroE|playBufferFromServer()|] $ do
         "Audio should be playing."
 
 pageServer request respond = respond $ responseLBS status200 [] $ renderHtml $ page
@@ -51,4 +90,5 @@ pageServer request respond = respond $ responseLBS status200 [] $ renderHtml $ p
 main = do
     let portNumber = 8504
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
+    forkIO $ sineServer (portNumber+1)
     run portNumber pageServer
