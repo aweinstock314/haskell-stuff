@@ -37,7 +37,7 @@ silence sampleRate seconds = replicate numFrames 0.0 where numFrames = floor $ s
 -- attack, decay, sustain, release are in [0,1], attack < decay < release
 -- attack, decay, release are fractions into the sample
 -- sustain is the volume between decay and release
-adsr :: Float -> Float -> Float -> Float -> [Float] -> [Float]
+adsr :: (Enum a, Floating a, Ord a) => a -> a -> a -> a -> [a] -> [a]
 adsr attack decay sustain release sample =
     map step $ zip [0..] sample where
     step (i, x) | i < atk = (atkVolume i) * x
@@ -59,6 +59,23 @@ tune1 sampleRate = snd . runWriter $ do
     forM_ freqs'' $ \freq -> do
         tell . env $ sineWave sampleRate 0.2 freq
         tell $ silence sampleRate 0.05
+
+-- Meant to approximate tetris music.
+tune2 sampleRate = snd . runWriter $ do
+    let env = adsr 0.0 0.3 0.25 0.8
+    let rest = tell . silence sampleRate
+    let f (freq, delay) = do
+        tell . env $ sineWave sampleRate (delay+0.15) freq
+        rest delay
+    let (d1, d2, d3, d4) = (0.15, 0.20, 0.25, 0.30)
+    let part1 = do
+        mapM_ f [(850, d2),
+                (700, d1), (750, d1), (800, d2), (750, d1), (700, d1), (650, d3),
+                (700, d1), (750, d1), (850, d2), (800, d1), (750, d1), (775, d2),
+                (700, d1), (750, d1), (800, d3), (850, d2), (800, d2),
+                (750, d2), (750, d4)]
+    part1
+    part1
 
 tuneServer tune = withAllWebsocketConnections $ \sock -> do
     sampleRateString <- WS.receiveData sock
@@ -120,5 +137,5 @@ pageServer request respond = respond $ responseLBS status200 [] $ renderHtml $ p
 main = do
     let portNumber = 8504
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
-    forkIO $ tuneServer tune1 (portNumber+1)
+    forkIO $ tuneServer tune2 (portNumber+1)
     run portNumber pageServer
