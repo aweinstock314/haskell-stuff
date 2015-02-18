@@ -51,7 +51,7 @@ adsr attack decay sustain release sample =
     len = genericLength sample
 -- Eyeball test of envelope generator: zip [0..] $ adsr 0.1 0.3 0.5 0.9 $ replicate 20 1.0
 
-tune1 sampleRate = snd . runWriter $ do
+tune1 sampleRate = execWriter $ do
     let env = adsr 0.0 0.6 0.25 0.9
     let freqs = [500,600..1000]
     let freqs' = freqs <> reverse freqs
@@ -61,20 +61,20 @@ tune1 sampleRate = snd . runWriter $ do
         tell $ silence sampleRate 0.05
 
 -- Meant to approximate tetris music.
-tune2 sampleRate = snd . runWriter $ do
-    let env = adsr 0.0 0.3 0.25 0.8
+tune2 sampleRate = execWriter $ do
+    let env = map (*0.5) . adsr 0.0 0.9 0.25 0.95
     let rest = tell . silence sampleRate
-    let f (freq, delay) = do
-        tell . env $ sineWave sampleRate (delay+0.15) freq
+    let (d1, d2, d3, d4) = (0.15/2, 0.20, 0.225, 0.25)
+    let f (freq, delay, emphasize) = do
+        let volumeMult = if emphasize then 1.5 else 0.5
+        tell . map (*volumeMult) . env $ sineWave sampleRate (delay+0.15) freq
         rest delay
-    let (d1, d2, d3, d4) = (0.15, 0.20, 0.25, 0.30)
     let part1 = do
-        mapM_ f [(850, d2),
-                (700, d1), (750, d1), (800, d2), (750, d1), (700, d1), (650, d3),
-                (700, d1), (750, d1), (850, d2), (800, d1), (750, d1), (775, d2),
-                (700, d1), (750, d1), (800, d3), (850, d2), (800, d2),
-                (750, d2), (750, d4)]
-    part1
+        mapM_ f [(850, d2, True),
+                (700, d1, False), (750, d1, False), (800, d2, True), (750, d1, False), (700, d1, False), (650, d3, True),
+                (700, d1, False), (750, d1, False), (850, d2, True), (800, d1, False), (750, d1, False), (750, d2, True),
+                (700, d1, False), (750, d1, False), (800, d3, True), (850, d2, False), (800, d2, False),
+                (725, d2, True), (725, d4, True)]
     part1
 
 tuneServer tune = withAllWebsocketConnections $ \sock -> do
@@ -122,7 +122,6 @@ function !playBufferFromServer() {
         playBuffer(buf);
     };
 }
-
 |]
 
 page = H.docTypeHtml $ do
