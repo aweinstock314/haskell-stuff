@@ -27,7 +27,7 @@ makeRandomBoard arrayCtor gen (w, h) density =
     arrayCtor ((0, 0), (w-1, h-1))
     (map (< density) (randoms gen :: [Double]))
 
-dogrid :: (Int, Int) -> (Int -> Int -> IO ()) -> IO () -> IO ()
+dogrid :: Monad m => (Int, Int) -> (Int -> Int -> m a) -> m b -> m ()
 dogrid (w, h) eachIndex eachLine = loop 0 0 where
     loop x y | y == h = return ()
     loop x y | x == w = eachLine >> loop 0 (y+1)

@@ -3,11 +3,14 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad
 import ConwayLife
 import Data.Array.Unboxed
+import Data.Binary
+import qualified Data.Binary.Put as BPut
 import Data.Char
 import Data.Maybe
 import Data.Monoid
 import Data.String
 import Data.IORef
+import Data.Word
 import Language.Javascript.JMacro
 import Network.HTTP.Types
 import Network.Wai
@@ -28,6 +31,8 @@ cellStr False = " "
 mkPixel :: IsString a => Bool -> a
 mkPixel True = "\xff\x00\x00\x00"
 mkPixel False = "\xff\xc8\xc8\xc8"
+mkPixel' True = 0x000000ff
+mkPixel' False = 0xc8c8c8ff
 
 
 serverUrl, cellCanvas :: IsString a => a
@@ -36,15 +41,22 @@ cellCanvas = "cellCanvas"
 
 cellSize = 4 :: Int
 
+mkResponse board (w, h) = BPut.runPut $ mapM_ (replicateM_ cellSize . mkLine) [0..h-1]
+    where mkLine y = mapM_ (\x -> replicateM_ cellSize . BPut.putWord32be . mkPixel' $ board!(x,y)) [0..w-1]
+
 simpleConwayServer gen (w, h) = withAllWebsocketConnections $ \sock -> do
     putStrLn "Received a websocket connection."
     let initBoard = makeRandomBoard listArray gen (w, h) 0.3 :: UArray (Int, Int) Bool
     forM_ (iterate (evolveBoard $ wrapIdx (w, h)) initBoard) $ \board -> do
+        {-
         responseRef <- newIORef L.empty
         lineBuf <- newIORef L.empty
         dogrid (w, h) (\x y -> modifyIORef lineBuf ((L.take (4*fromIntegral cellSize) . L.cycle . mkPixel $ board!(x, y))<>)) (do {line <- readIORef lineBuf; replicateM_ cellSize $ modifyIORef responseRef (line<>); writeIORef lineBuf L.empty})
         response <- readIORef responseRef
         WS.sendBinaryData sock $ L.reverse response
+        -}
+        --let response = BPut.runPut $ dogrid (w, h) (\x y -> BPut.putWord32be . mkPixel' $ board!(x,y)) (return ())
+        WS.sendBinaryData sock $ mkResponse board (w,h)
         delayMs 10
 
 jsDefinitions (w, h) = [jmacro|
@@ -86,7 +98,7 @@ function !simpleConwayClient() {
 page (w, h) = H.docTypeHtml $ do
     H.head $ do
         H.title "Conway's game of life"
-        embedScript $ jsDefinitions (w, h)
+        embedScriptMultiline $ jsDefinitions (w, h)
     H.body `onloadDo` [jmacroE|simpleConwayClient()|] $ do
         H.canvas "" H.! A.width (H.stringValue . show $ w*cellSize) H.! A.height (H.stringValue . show $ h*cellSize) H.! A.id cellCanvas
 
@@ -96,6 +108,8 @@ main = do
     let portNumber = 8502
     let (width, height) = (200, 100)
     gen <- getStdGen
+    --let (width, height) = (20, 20)
+    --let gen = mkStdGen 0
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
     forkIO $ simpleConwayServer gen (width, height) (portNumber+1)
     run portNumber (pageServer (fromIntegral width, fromIntegral height))
