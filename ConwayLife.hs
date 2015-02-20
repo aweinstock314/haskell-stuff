@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module ConwayLife (makeRandomBoard, wrapIdx, truncIdx, dogrid, showBoard, evolveBoard, showBoardMut, evolveBoardMut) where
+module ConwayLife (makeRandomBoard, wrapIdx, truncIdx, wrapIdxCPS, truncIdxCPS, dogrid, showBoard, evolveBoard, evolveBoardCPS, showBoardMut, evolveBoardMut) where
 import Control.DeepSeq
 import Control.Exception
 import Control.Monad
@@ -35,12 +35,19 @@ dogrid (w, h) eachIndex eachLine = loop 0 0 where
 
 showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
 
+wrapIdxCPS, truncIdxCPS :: (Int, Int) -> (Int, Int) -> ((Int, Int) -> Int) -> Int -> Int
+truncIdxCPS (w, h) (x, y) onSuccess onFail =
+    if ((0 <= x) && (x < w) && (0 <= y) && (y < h)) then onSuccess (x, y) else onFail
+wrapIdxCPS (w, h) (x, y) onSuccess onFail = onSuccess (x `mod` w, y `mod` h)
 wrapIdx, truncIdx :: (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
 truncIdx (w, h) (x, y) = guard ((0 <= x) && (x < w) && (0 <= y) && (y < h)) >> return (x, y)
 wrapIdx (w, h) (x, y) = Just (x `mod` w, y `mod` h)
 adjacents :: (Int, Int) -> [(Int, Int)]
 adjacents (x, y) = [(x+dx, y+dy) | dx <- [-1..1], dy <- [-1..1], (dx, dy) /= (0, 0)]
-neighborIdxs handleEdges pt = V.fromList . mapMaybe handleEdges $ adjacents pt
+adjacents' :: (Int, Int) -> V.Vector (Int, Int)
+adjacents' (x, y) = V.filter (/= (x, y)) $ V.generate 9 ((\(dx, dy) -> (x+dx-1, y+dy-1)) . (`divMod` 3))
+
+neighborIdxs handleEdges = V.fromList . mapMaybe handleEdges . adjacents
 
 cacheLookup cacheref f x = do
     cache <- readIORef cacheref
@@ -62,6 +69,17 @@ cachedNeighborIdxs handleEdges pt = UNS.unsafePerformIO $ cacheLookup neighborId
 
 sumOfNeighbors :: ((Int, Int) -> Maybe (Int, Int)) -> UArray (Int, Int) Bool -> (Int, Int) -> Int
 sumOfNeighbors handleEdges brd = V.sum . V.map (intOfBool . (brd!)) . cachedNeighborIdxs handleEdges
+sumOfNeighborsCPS :: ((Int, Int) -> ((Int, Int) -> Int) -> Int -> Int) -> UArray (Int, Int) Bool -> (Int, Int) -> Int
+sumOfNeighborsCPS handleEdgesCPS brd = V.sum . V.map (\p -> handleEdgesCPS p (intOfBool.(brd!)) 0) . adjacents'
+{-
+sumOfNeighbors' handleEdges !brd (!x, !y) = aux (-1) (-1) 0 where
+    aux 0 0 !acc = aux 1 0 acc
+    aux _ 2 !acc = acc
+    aux 2 dy !acc = aux (-1) (dy+1) acc
+    aux !dx !dy !acc = case handleEdges (x+dx, y+dy) of
+        Just (nx, ny) -> aux (dx+1) dy (acc + (intOfBool $ brd!(nx, ny)))
+        Nothing -> aux (dx+1) dy acc
+-}
 
 amapi :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
 amapi f arr = array (bounds arr) (map (\(i, e) -> (i, f i e)) (assocs arr))
@@ -74,6 +92,9 @@ successorCell False = (== 3)
 
 evolveBoard handleEdges brd = amapi (\(x, y) alive ->
     successorCell alive $ sumOfNeighbors handleEdges brd (x, y)
+    ) brd
+evolveBoardCPS handleEdgesCPS brd = amapi (\(x, y) alive ->
+    successorCell alive $ sumOfNeighborsCPS handleEdgesCPS brd (x, y)
     ) brd
 
 showBoardMut dim brd = dogrid dim (\x y -> readArray brd (x, y) >>= showCell) (putStrLn "")

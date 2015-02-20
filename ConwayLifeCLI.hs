@@ -24,6 +24,13 @@ showAutomaton (w, h, loop, edge, seedgen) = do
     let boards = iterate (evolveBoard (edge (w, h))) initBoard
     loop $ map (\brd -> showBoard (w, h) brd >> showSpacing) boards
 
+showAutomatonCPS (w, h, loop, edge, seedgen) = do
+    setBoardBuffering w h
+    gen <- fromMaybe getStdGen $ liftM return seedgen
+    let initBoard = makeRandomBoard listArray gen (w, h) 0.3 :: UArray (Int, Int) Bool
+    let boards = iterate (evolveBoardCPS (edge (w, h))) initBoard
+    loop $ map (\brd -> showBoard (w, h) brd >> showSpacing) boards
+
 showAutomatonMut (w, h, loop, edge, seedgen) = do
     setBoardBuffering w h
     gen <- fromMaybe getStdGen $ liftM return seedgen
@@ -54,12 +61,16 @@ processOpts = foldl (\(w, h, loop, edge, seed) opt -> case opt of
         Edgehandling s -> case s of
             "wrap" -> (w, h, loop, wrapIdx, seed)
             "trunc" -> (w, h, loop, truncIdx, seed)
+            --"wrap" -> (w, h, loop, wrapIdxCPS, seed)
+            --"trunc" -> (w, h, loop, truncIdxCPS, seed)
             _ -> error $ "Invalid edge handling mode: " ++ s
         ShowHelp -> error $ usageInfo "" options
     ) (50, 50, sequence_, wrapIdx, Nothing)
+    --) (50, 50, sequence_, wrapIdxCPS, Nothing)
 
 main = do
     args <- getArgs
     case getOpt Permute options args of
         (opts, _, []) -> showAutomaton . processOpts $ concat opts
+        --(opts, _, []) -> showAutomatonCPS . processOpts $ concat opts
         (_, _, errs) -> error $ concat errs
