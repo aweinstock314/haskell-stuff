@@ -1,5 +1,6 @@
 #!/usr/bin/env runhaskell
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
+import Control.Arrow
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad.Writer
 import Data.Binary.IEEE754
@@ -10,11 +11,12 @@ import Language.Javascript.JMacro
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
+import System.Random
 import Text.Blaze.Html.Renderer.Utf8
 import WebUtils
 import qualified Data.Binary.Put as BPut
 import qualified Data.ByteString.Lazy as L
-import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector as V
 import qualified Network.WebSockets as WS
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
@@ -33,6 +35,25 @@ sineWave sampleRate seconds frequency =
         numFrames = sampleRate * seconds
 
 silence sampleRate seconds = replicate numFrames 0.0 where numFrames = floor $ sampleRate * seconds
+
+scaleFromTo (a, b) (a', b') x = ((x-a)/(b-a))*(b'-a')+a'
+
+noise :: (RandomGen r, RealFrac a) => r -> a -> a -> ([Float], r)
+noise gen sampleRate seconds = first (take (floor $ sampleRate*seconds) . map (scaleFromTo (0, 1) (-1, 1)) . randoms) $ split gen
+
+mapWithPrev f x0 = reverse . snd . foldl (\(prev, result) cur -> (cur, (f prev cur):result)) (x0, [])
+mapWithPrevTwo f x0 x1 = reverse . (\(_,_,x)->x) . foldl (\(prev1, prev0, result) cur -> (prev0, cur, (f prev1 prev0 cur):result)) (x0, x1, [])
+
+funcpow f i x = (iterate f x) !! i
+
+karplusStrong b p sampleRate seconds = V.toList result where
+    -- Implemented from description at https://ccrma.stanford.edu/~sdill/220A-project/drums.html
+    numFrames = floor $ sampleRate * seconds
+    (gen1, gen2) = split $ mkStdGen 0
+    waveTable = V.fromList . fst $ noise gen1 (fromIntegral p) 1
+    biasedCoinFlips = V.fromList . take numFrames $ map (< b) (randoms gen2 :: [Double])
+    deref xs i = if i < p then waveTable V.! i else xs V.! (i-p)
+    result = let d = deref result in V.generate numFrames $ (\i -> (0.5*d i)+((if biasedCoinFlips V.! i then id else negate)0.5*d (i+1)))
 
 -- attack, decay, sustain, release are in [0,1], attack < decay < release
 -- attack, decay, release are fractions into the sample
@@ -80,6 +101,16 @@ tune2 pitchShift sampleRate = execWriter $ do
     part1
 
 tune3 sampleRate = linearCombination [0.75, 0.25] [tune2 0 sampleRate, tune2 (-250) sampleRate]
+
+tune4 gen sampleRate = execWriter $ do
+    --let env = adsr 0.0 0.8 0.25 0.95
+    let env = map (*0.5)
+    --tell . env . fst $ noise gen sampleRate 0.5
+    let sample b p = karplusStrong b p sampleRate 1
+    forM_ [0.9, 0.91..1] $ \b -> do
+        forM_ [200, 250..600] $ \p -> do
+            tell . env $ sample b p
+            tell $ silence sampleRate 0.1
 
 tuneServer tune = withAllWebsocketConnections $ \sock -> do
     sampleRateString <- WS.receiveData sock
@@ -162,6 +193,7 @@ pageServer request respond = respond $ responseLBS status200 [] $ renderHtml $ p
 
 main = do
     let portNumber = 8504
+    gen <- getStdGen
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
-    forkIO $ tuneServer (tune2 0) (portNumber+1)
+    forkIO $ tuneServer (tune4 gen) (portNumber+1)
     run portNumber pageServer
