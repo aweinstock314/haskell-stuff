@@ -3,6 +3,7 @@ module WebUtils where
 import Control.Concurrent (threadDelay)
 import Data.Char
 import Data.Maybe
+import Data.Time
 import Language.Javascript.JMacro
 import qualified Data.ByteString.Lazy as L
 import qualified Network.WebSockets as WS
@@ -28,6 +29,13 @@ showScript = H.pre . H.string . show . renderJs
 withAllWebsocketConnections action portNumber = WS.runServer "0.0.0.0" portNumber $ \pending -> do
     sock <- WS.acceptRequest pending
     action sock
+
+withTiming action withTime = do
+    t1 <- getCurrentTime
+    result <- action
+    t2 <- getCurrentTime
+    withTime $ diffUTCTime t2 t1
+    return result
 
 mkTable :: Integer -> Integer -> JExpr
 mkTable width height = [jmacroE|

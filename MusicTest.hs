@@ -117,7 +117,7 @@ tuneServer tune = withAllWebsocketConnections $ \sock -> do
     case safeRead $ unlbs sampleRateString :: Maybe Float of
         Just sampleRate -> do
             putStrLn $ mconcat ["Received a websocket connection. sampleRate = ", show sampleRate]
-            WS.sendBinaryData sock . floatsToLBS $ tune sampleRate
+            withTiming (WS.sendBinaryData sock . floatsToLBS $ tune sampleRate) (\dt -> putStrLn $ mconcat ["Rendered the tune in ", show dt, "."])
         Nothing -> return ()
 
 jsDefinitions = [jmacro|
