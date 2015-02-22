@@ -46,14 +46,18 @@ mapWithPrevTwo f x0 x1 = reverse . (\(_,_,x)->x) . foldl (\(prev1, prev0, result
 
 funcpow f i x = (iterate f x) !! i
 
+rollingAggregate f seed size = result where
+    seedLen = V.length seed
+    deref xs i = if i < seedLen then seed V.! i else xs V.! (i-seedLen)
+    result = let d = deref result in V.generate size (\i -> f i (d . (+i)))
+
 karplusStrong b p sampleRate seconds = V.toList result where
     -- Implemented from description at https://ccrma.stanford.edu/~sdill/220A-project/drums.html
     numFrames = floor $ sampleRate * seconds
     (gen1, gen2) = split $ mkStdGen 0
     waveTable = V.fromList . fst $ noise gen1 (fromIntegral p) 1
     biasedCoinFlips = V.fromList . take numFrames $ map (< b) (randoms gen2 :: [Double])
-    deref xs i = if i < p then waveTable V.! i else xs V.! (i-p)
-    result = let d = deref result in V.generate numFrames $ (\i -> (0.5*d i)+((if biasedCoinFlips V.! i then id else negate)0.5*d (i+1)))
+    result = rollingAggregate (\i w -> (0.5*w 0)+((if biasedCoinFlips V.! i then id else negate)0.5*w 1)) waveTable numFrames
 
 -- attack, decay, sustain, release are in [0,1], attack < decay < release
 -- attack, decay, release are fractions into the sample
