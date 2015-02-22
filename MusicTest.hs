@@ -70,9 +70,9 @@ adsr attack decay sustain release sample =
     step (i, x) | i < rel =       sustain * x
     step (i, x)           = (relVolume i) * x
     [atk, dec, rel] = map (*len) [attack, decay, release]
-    atkVolume i = (i/atk)
-    decVolume i = (1-sustain)*(1-((i-atk)/(dec-atk)))+sustain
-    relVolume i = sustain * (1-((i-rel)/(len-rel)))
+    atkVolume = scaleFromTo (0, atk) (0, 1)
+    decVolume = scaleFromTo (atk, dec) (1, sustain)
+    relVolume = scaleFromTo (rel, len) (sustain, 0)
     len = genericLength sample
 -- Eyeball test of envelope generator: zip [0..] $ adsr 0.1 0.3 0.5 0.9 $ replicate 20 1.0
 
