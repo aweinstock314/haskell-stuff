@@ -21,8 +21,6 @@ import qualified Network.WebSockets as WS
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
-serverUrl :: IsString a => a
-serverUrl = "ws://localhost:8505"
 
 tau :: Floating a => a
 tau = 2 * pi
@@ -64,16 +62,17 @@ karplusStrong b p sampleRate seconds = V.toList result where
 -- sustain is the volume between decay and release
 adsr :: (Enum a, Floating a, Ord a) => a -> a -> a -> a -> [a] -> [a]
 adsr attack decay sustain release sample =
-    map step $ zip [0..] sample where
-    step (i, x) | i < atk = (atkVolume i) * x
-    step (i, x) | i < dec = (decVolume i) * x
-    step (i, x) | i < rel =       sustain * x
-    step (i, x)           = (relVolume i) * x
+    V.toList $ V.imap (step . fromIntegral) sample' where
+    step i x | i < atk = (atkVolume i) * x
+    step i x | i < dec = (decVolume i) * x
+    step i x | i < rel =       sustain * x
+    step i x           = (relVolume i) * x
     [atk, dec, rel] = map (*len) [attack, decay, release]
     atkVolume = scaleFromTo (0, atk) (0, 1)
     decVolume = scaleFromTo (atk, dec) (1, sustain)
     relVolume = scaleFromTo (rel, len) (sustain, 0)
-    len = genericLength sample
+    len = fromIntegral $ V.length sample'
+    sample' = V.fromList sample
 -- Eyeball test of envelope generator: zip [0..] $ adsr 0.1 0.3 0.5 0.9 $ replicate 20 1.0
 
 tune1 sampleRate = execWriter $ do
@@ -115,6 +114,14 @@ tune4 gen sampleRate = execWriter $ do
         forM_ [200, 250..600] $ \p -> do
             tell . env $ sample b p
             tell $ silence sampleRate 0.1
+
+tune5 sampleRate = (\lst -> lst <> reverse lst) . execWriter $ do
+    let env = id --map (*0.5)
+    forM_ [0.2, 0.3..0.9] $ \b -> do
+        forM_ (take 6 $ cycle [600, 800]) $ \p -> do
+            tell . env $ karplusStrong b p sampleRate 0.25
+
+tune6 sampleRate = adsr 0.1 0.1 1 0.9 . (\lst -> lst <> reverse lst) $ linearCombination [0.1, 0.5] [cycle $ tune1 sampleRate, tune5 sampleRate]
 
 tuneServer tune = withAllWebsocketConnections $ \sock -> do
     sampleRateString <- WS.receiveData sock
@@ -173,7 +180,7 @@ function !playSineScale() {
 
 function !playBufferFromServer() {
     var sampleRate = new AudioContext().sampleRate;
-    var sock = new WebSocket(`serverUrl::String`);
+    var sock = new WebSocket(document.URL.replace('8504', '8505').replace('http', 'ws'));
     sock.binaryType = 'arraybuffer';
     sock.onopen = function(event) {
         sock.send(String(sampleRate));
@@ -199,5 +206,5 @@ main = do
     let portNumber = 8504
     gen <- getStdGen
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
-    forkIO $ tuneServer (tune4 gen) (portNumber+1)
+    forkIO $ tuneServer tune6 (portNumber+1)
     run portNumber pageServer
