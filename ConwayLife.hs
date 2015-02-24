@@ -10,6 +10,9 @@ import Data.List
 import Data.Maybe
 import MkCached
 import System.Random
+import qualified Data.Binary as B
+import qualified Data.Binary.Put as BPut
+import qualified Data.ByteString.Lazy as L
 import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as V
 import qualified System.IO.Unsafe as UNS
@@ -18,8 +21,10 @@ intOfBool :: Bool -> Int
 intOfBool True = 1
 intOfBool False = 0
 
-showCell True = putStr "#"
-showCell False = putStr "_"
+cellChar True = '#'
+cellChar False = '_'
+
+showCell = putStr . return . cellChar
 
 --makeRandomBoard arrayCtor gen (w, h) = arrayCtor ((0, 0), (w-1, h-1)) (map (`mod` 2) (randoms gen))
 
@@ -33,7 +38,8 @@ dogrid (w, h) eachIndex eachLine = loop 0 0 where
     loop x y | x == w = eachLine >> loop 0 (y+1)
     loop x y = eachIndex x y >> loop (x+1) y
 
-showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
+--showBoard dim brd = dogrid dim (\x y -> showCell $ brd!(x, y)) (putStrLn "")
+showBoard dim brd = L.putStr . BPut.runPut $ dogrid dim (\x y -> B.put . cellChar $ brd!(x,y)) (B.put '\n')
 
 wrapIdxCPS, truncIdxCPS :: (Int, Int) -> (Int, Int) -> ((Int, Int) -> Int) -> Int -> Int
 truncIdxCPS (w, h) (x, y) onSuccess onFail =
