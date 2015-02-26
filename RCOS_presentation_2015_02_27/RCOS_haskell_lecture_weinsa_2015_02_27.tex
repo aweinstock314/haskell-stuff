@@ -83,6 +83,22 @@ divides n i = (n `mod` i) == 0
 isPrime n = not $ any (divides n) [1..n]
 isPrime' n = not (any (divides n) [1..n]) -- equivalent definition
 \end{Verbatim}
+\end{itemize}
+%ghci -XNoMonomorphismRestriction
+%:set prompt "ghci> "
+%:load haskell_lecture_numberslide.hs
+%:browse
+%map factorial [1..10]
+%magnitude [1,1]
+%take 10 $ filter isPrime [2..]
+%take 10 fibonaccis
+%plot (^2) [0..7]
+%plot (approxDerivative 0.01 (^2)) [0..7]
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Examples with numbers (continued)}
+\begin{itemize}
 \item
 \begin{Verbatim}[frame=single, fontsize=\scriptsize]
 fibonaccis = 1 : 1 : zipWith (+) fibonaccis (tail fibonaccis)
@@ -99,16 +115,6 @@ prepend = zipWith ((++) . show)
 plot f xs = showLines $ prepend xs (map (stars . f) xs)
 \end{Verbatim}
 \end{itemize}
-%ghci -XNoMonomorphismRestriction
-%:set prompt "ghci> "
-%:load haskell_lecture_numberslide.hs
-%:browse
-%map factorial [1..10]
-%magnitude [1,1]
-%take 10 $ filter isPrime [2..]
-%take 10 fibonaccis
-%plot (^2) [0..7]
-%plot (approxDerivative 0.01 (^2)) [0..7]
 \end{frame}
 
 \begin{frame}[fragile]
@@ -136,6 +142,50 @@ sum, product :: Num a => [a] -> a
 replicate :: Int -> a -> [a]
 
 putStr, putStrLn :: String -> IO ()
+\end{Verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Map and Reduce}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+map :: (a -> b) -> [a] -> [b]
+map f [] = []
+map f (x:xs) = (f x):(map f xs)
+
+map' f = foldr ((:) . f) [] -- equivalent definition
+
+foldr :: (a -> b -> b) -> b -> [a] -> b
+foldr f acc [] = acc
+foldr f acc (x:xs) = f x (foldr f acc xs)
+\end{Verbatim}
+\verb|map| applies its function to every element of a list.\\
+\verb|foldr| uses the provided function to reduce/aggregate the list into some value, starting from a seed.\\
+Folds are very general, and can be used to implement many types of loops.\\
+Definition of \verb|foldl| in Python:
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+def foldl(f, init, xs):
+    acc = init
+    for x in xs:
+        acc = f(acc, init)
+    return acc
+\end{Verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Reduce (continued)}
+More definitions of things in terms of \verb|foldr|:
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+map f = foldr ((:) . f) []
+
+sum = foldr (+) 0
+
+product = foldr (*) 1
+
+concat = foldr (++) []
+
+all p = foldr ((&&) . p) True
+
+any p = foldr ((||) . p) False
 \end{Verbatim}
 \end{frame}
 
@@ -184,6 +234,12 @@ h x = x `mod` 2
 h = (`mod` 2)
 h x = mod x 2
 \end{Verbatim}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+i x = 2 `mod` x
+i = (2 `mod`)
+i x = mod 2 x
+\end{Verbatim}
+Note that $\verb|h| \neq \verb|i|$, since \verb|mod| is not commutative.
 \end{frame}
 
 \begin{frame}[fragile]
@@ -255,8 +311,25 @@ quicksortBy cmp vec = V.modify (quicksortByST cmp) vec
 
 quicksort = quicksortBy compare
 
-runTests = quickCheck matchesListSort where
-    matchesListSort x = (sort x) == (V.toList . quicksort . V.fromList)
+runTests = quickCheck matchesListSort where 
+    matchesListSort :: [Int] -> Bool
+    matchesListSort x = (sort x) == (V.toList . quicksort $ V.fromList x)
+
 \end{Verbatim}
 \end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Questions?}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Thanks}
+\begin{itemize}
+\item RCOS
+\item Professor Goldschmidt
+\item Professor Moorthy
+\item Sean O'Sullivan
+\end{itemize}
+\end{frame}
+
 \end{document}

@@ -31,4 +31,6 @@ quicksortBy cmp vec = V.modify (quicksortByST cmp) vec
 
 quicksort = quicksortBy compare
 
-runTests = quickCheck (\x -> (sort x) == (V.toList . quicksort $ V.fromList x))
+runTests = verboseCheck matchesListSort where
+    matchesListSort :: [Int] -> Bool
+    matchesListSort x = (sort x) == (V.toList . quicksort $ V.fromList x)
