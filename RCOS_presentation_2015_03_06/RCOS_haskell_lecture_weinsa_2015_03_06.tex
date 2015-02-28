@@ -1,6 +1,6 @@
 \documentclass{beamer}
 \title{Introduction to Functional Programming with Haskell - RCOS Presentation}
-\date{February 27, 2015}
+\date{March 6, 2015}
 \author{Avi Weinstock}
 %\usepackage{listings}
 %\lstset{language=Haskell}
@@ -326,15 +326,14 @@ import qualified Data.Vector.Mutable as VM
 import Data.List
 import Test.QuickCheck
 
-partitionByST cmp vec lo hi = VM.read vec pivotIdx >>= aux lo lo hi where
-    pivotIdx = lo + ((hi-lo) `div` 2)
-    aux i j n mid | j <= n = do
-        a_j <- VM.read vec j
-        case cmp a_j mid of
-            LT -> VM.swap vec i j >> aux (i+1) (j+1) n mid
-            GT -> VM.swap vec j n >> aux i j (n-1) mid
-            EQ -> aux i (j+1) n mid
-    aux i j n mid = return (i, j)
+partitionByST cmp vec pivot lo hi = aux lo lo hi where
+    aux i j n | j <= n = do 
+        a_j <- VM.read vec j 
+        case cmp a_j pivot of
+            LT -> VM.swap vec i j >> aux (i+1) (j+1) n
+            GT -> VM.swap vec j n >> aux i j (n-1)
+            EQ -> aux i (j+1) n
+    aux i j n = return (i, j)
 \end{Verbatim}
 \end{frame}
 
@@ -343,8 +342,10 @@ partitionByST cmp vec lo hi = VM.read vec pivotIdx >>= aux lo lo hi where
 \begin{Verbatim}[frame=single, fontsize=\scriptsize]
 quicksortByST cmp vec = aux 0 (VM.length vec - 1) where
     aux lo hi = when (lo < hi) $ do
-        (leftMid, rightMid) <- partitionByST cmp vec lo hi
-        aux lo leftMid
+        let pivotIdx = lo + ((hi-lo) `div` 2)
+        pivot <- VM.read vec pivotIdx
+        (leftMid, rightMid) <- partitionByST cmp vec pivot lo hi
+        aux lo leftMid 
         aux rightMid hi
 
 quicksortBy cmp vec = V.modify (quicksortByST cmp) vec

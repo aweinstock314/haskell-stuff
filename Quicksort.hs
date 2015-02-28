@@ -31,19 +31,20 @@ quicksortByST cmp vec = aux 0 (VM.length vec - 1) where
 -}
 
 -- http://en.wikipedia.org/wiki/Dutch_national_flag_problem
-partitionByST cmp vec lo hi = VM.read vec pivotIdx >>= aux lo lo hi where
-    pivotIdx = lo + ((hi-lo) `div` 2)
-    aux i j n mid | j <= n = do
+partitionByST cmp vec pivot lo hi = aux lo lo hi where
+    aux i j n | j <= n = do
         a_j <- VM.read vec j
-        case cmp a_j mid of
-            LT -> VM.swap vec i j >> aux (i+1) (j+1) n mid
-            GT -> VM.swap vec j n >> aux i j (n-1) mid
-            EQ -> aux i (j+1) n mid
-    aux i j n mid = return (i, j)
+        case cmp a_j pivot of
+            LT -> VM.swap vec i j >> aux (i+1) (j+1) n
+            GT -> VM.swap vec j n >> aux i j (n-1)
+            EQ -> aux i (j+1) n
+    aux i j n = return (i, j)
 
 quicksortByST cmp vec = aux 0 (VM.length vec - 1) where
     aux lo hi = when (lo < hi) $ do
-        (leftMid, rightMid) <- partitionByST cmp vec lo hi
+        let pivotIdx = lo + ((hi-lo) `div` 2)
+        pivot <- VM.read vec pivotIdx
+        (leftMid, rightMid) <- partitionByST cmp vec pivot lo hi
         aux lo leftMid
         aux rightMid hi
 
