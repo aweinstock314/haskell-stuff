@@ -123,6 +123,12 @@ tune5 sampleRate = (\lst -> lst <> reverse lst) . execWriter $ do
 
 tune6 sampleRate = adsr 0.1 0.1 1 0.9 . (\lst -> lst <> reverse lst) $ linearCombination [0.1, 0.5] [cycle $ tune1 sampleRate, tune5 sampleRate]
 
+tune7 sampleRate = execWriter $ do
+    let env = map (*0.5)
+    let note x = (\x -> x <> reverse x <> replicate (floor $ sampleRate*0.1) 0.0) $ karplusStrong 0.7 x sampleRate 0.1
+    forM_ (take 10 $ cycle [800, 500]) $ \x -> do
+        tell . env $ note x
+
 tuneServer tune = withAllWebsocketConnections $ \sock -> do
     sampleRateString <- WS.receiveData sock
     case safeRead $ unlbs sampleRateString :: Maybe Float of
@@ -206,5 +212,5 @@ main = do
     let portNumber = 8504
     gen <- getStdGen
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
-    forkIO $ tuneServer tune6 (portNumber+1)
+    forkIO $ tuneServer tune7 (portNumber+1)
     run portNumber pageServer
