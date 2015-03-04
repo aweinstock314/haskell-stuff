@@ -5,7 +5,6 @@ import Data.STRef
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 
-import Data.List
 import Test.QuickCheck
 
 {-
@@ -30,6 +29,11 @@ quicksortByST cmp vec = aux 0 (VM.length vec - 1) where
         aux (mid+1) hi
 -}
 
+naiveQuicksort [] = []
+naiveQuicksort lst = naiveQuicksort less ++ eq ++ naiveQuicksort more where
+    pivot = lst !! (length lst `div` 2)
+    [less, eq, more] = map (\op -> filter (`op` pivot) lst) [(<), (==), (>)]
+
 -- http://en.wikipedia.org/wiki/Dutch_national_flag_problem
 partitionByST cmp vec pivot lo hi = aux lo lo hi where
     aux i j n | j <= n = do
@@ -52,6 +56,8 @@ quicksortBy cmp vec = V.modify (quicksortByST cmp) vec
 
 quicksort = quicksortBy compare
 
-runTests = verboseCheck matchesListSort where
-    matchesListSort :: [Int] -> Bool
-    matchesListSort x = (sort x) == (V.toList . quicksort $ V.fromList x)
+quicksortList = V.toList . quicksort . V.fromList
+
+runTests = verboseCheck naiveSort_matches_STSort where
+    naiveSort_matches_STSort :: [Int] -> Bool
+    naiveSort_matches_STSort x = naiveQuicksort x == quicksortList x

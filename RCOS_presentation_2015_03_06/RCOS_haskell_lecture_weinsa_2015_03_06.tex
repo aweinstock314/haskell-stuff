@@ -186,6 +186,8 @@ concat = foldr (++) []
 all p = foldr ((&&) . p) True
 
 any p = foldr ((||) . p) False
+
+average = uncurry (/) . foldr (\x (s, t) -> (s+x, t+1)) (0, 0)
 \end{Verbatim}
 \end{frame}
 
@@ -271,6 +273,40 @@ main3 = interact (caesarCipher 3)
 \end{frame}
 
 \begin{frame}[fragile]
+\frametitle{Datatype declarations}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+data TrafficLight = RedLight | YellowLight | GreenLight
+\end{Verbatim}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+import qualified Data.Foldable as F
+
+data List a = Node a (List a) | Empty
+
+instance Foldable List where
+    foldr f acc Empty = acc
+    foldr f acc (Node x xs) = f x (F.foldr f acc xs)
+\end{Verbatim}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+import qualified Data.Map as M
+
+data JSVal =
+    JSUndefined
+    | JSNull
+    | JSBoolean Bool
+    | JSString String
+    | JSNumber Double
+    | JSObject (M.Map String JSVal)
+\end{Verbatim}
+%-- http://www.ecma-international.org/ecma-262/5.1/#sec-11.9.3
+%jsEqual JSUndefined JSUndefined = True
+%jsEqual JSNull JSNull = True
+%jsEqual (JSNumber x) (JSNumber y) = x == y
+%jsEqual (JSString x) (JSString y) = x == y
+%jsEqual (JSBoolean x) (JSBoolean y) = x == y
+%jsEqual (JSObject x) (JSObject y) =
+\end{frame}
+
+\begin{frame}[fragile]
 \frametitle{Binary Search Trees}
 \begin{Verbatim}[frame=single, fontsize=\scriptsize]
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -323,8 +359,12 @@ import Data.STRef
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 
-import Data.List
 import Test.QuickCheck
+
+naiveQuicksort [] = []
+naiveQuicksort lst = naiveQuicksort less ++ eq ++ naiveQuicksort more where
+    pivot = lst !! (length lst `div` 2)
+    [less, eq, more] = map (\op -> filter (`op` pivot) lst) [(<), (==), (>)]
 
 partitionByST cmp vec pivot lo hi = aux lo lo hi where
     aux i j n | j <= n = do 
@@ -352,9 +392,11 @@ quicksortBy cmp vec = V.modify (quicksortByST cmp) vec
 
 quicksort = quicksortBy compare
 
-runTests = quickCheck matchesListSort where 
-    matchesListSort :: [Int] -> Bool
-    matchesListSort x = (sort x) == (V.toList . quicksort $ V.fromList x)
+quicksortList = V.toList . quicksort . V.fromList
+
+runTests = quickCheck naiveSort_matches_STSort where
+    naiveSort_matches_STSort :: [Int] -> Bool
+    naiveSort_matches_STSort x = naiveQuicksort x == quicksortList x
 \end{Verbatim}
 \end{frame}
 
