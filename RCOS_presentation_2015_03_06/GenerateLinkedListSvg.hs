@@ -74,7 +74,7 @@ jointedLine [] = return ()
 jointedLine pts = zipWithM_ line pts (tail pts)
 
 main = do
-    svgFile "LinkedListExamples.svg" 900 700 "100 75 800 800" $ do
+    let shared_examples = do
         text (40, 140) "x" >> ll123 (100, 100)
         text (40, 240) "x'" >> ll123 (100, 200)
         text (40, 340) "tail x'" >> arrow (175,325) (275, 250)
@@ -85,19 +85,33 @@ main = do
         arrow (125, 375) (125, 400)
 
         text (40, 740) "z"
-        drawFiniteList (100, 700) (["1", "1"] ++ replicate 4 "...")
         text (40, 840) "tail z"
         arrow (175,825) (275, 750)
 
-        let f (dx, y) ixs = do
-            let xs = map ((dx+) . (125+) . (150*)) ixs
-            line (minimum xs, y) (maximum xs, y)
-            text (head xs+50, y) "+"
-            forM_ (init xs) $ \x -> do
-                line (x, y) (x, 700)
-            arrow (last xs, y) (last xs, 700)
-        mapM_ (uncurry f) [(((-20,620)),[0,1,2]),
-                            ((20,640), [1,2,3]),
-                            ((-10,660), [2,3,4]),
-                            ((10,680), [3,4,5])]
+    let f ((dx, y), ixs) = do
+        let xs = map ((dx+) . (125+) . (150*)) ixs
+        line (minimum xs, y) (maximum xs, y)
+        text (head xs+50, y) "+"
+        forM_ (init xs) $ \x -> do
+            line (x, y) (x, 700)
+        arrow (last xs, y) (last xs, 700)
+    svgFile "LinkedListExamples1.svg" 900 700 "100 75 800 800" $ do
+        shared_examples
+        drawFiniteList (100, 700) (["1", "1"] ++ replicate 4 "...")
+        mapM_ f [(((-20,675)),[0,1,2]), ((20,650), [1,2,3]), ((-10,625), [2,3,4]), ((10,600), [3,4,5])]
+    svgFile "LinkedListExamples2.svg" 900 700 "100 75 800 800" $ do
+        shared_examples
+        drawFiniteList (100, 700) (["1", "1", "2"] ++ replicate 3 "...")
+        mapM_ f [((20,650), [1,2,3]), ((-10,625), [2,3,4]), ((10,600), [3,4,5])]
+    svgFile "LinkedListExamples3.svg" 900 700 "100 75 800 800" $ do
+        shared_examples
+        drawFiniteList (100, 700) (["1", "1", "2", "3"] ++ replicate 2 "...")
+        mapM_ f [((-10,625), [2,3,4]), ((10,600), [3,4,5])]
+    svgFile "LinkedListExamples4.svg" 900 700 "100 75 800 800" $ do
+        shared_examples
+        drawFiniteList (100, 700) ["1", "1", "2", "3", "5", "..."]
+        f ((10,600), [3,4,5])
+    svgFile "LinkedListExamples5.svg" 900 700 "100 75 800 800" $ do
+        shared_examples
+        drawFiniteList (100, 700) ["1", "1", "2", "3", "5", "8"]
 
