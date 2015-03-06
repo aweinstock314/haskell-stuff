@@ -120,7 +120,8 @@ plot f xs = showLines $ prepend xs (map (stars . f) xs)
 
 \begin{frame}[fragile]
 \frametitle{Execution of examples}
-\includegraphics[scale=0.25]{haskell_lecture_numberslide_ghci1_cropped.png}
+%\includegraphics[scale=0.325]{haskell_lecture_numberslide_ghci1_cropped.png}
+\includegraphics[width=\textwidth, height=3.25in]{haskell_lecture_numberslide_ghci1_cropped.png}
 \end{frame}
 
 \begin{frame}[fragile]
@@ -313,6 +314,10 @@ data JSVal =
     | JSString String
     | JSNumber Double
     | JSObject (M.Map String JSVal)
+
+jsAdd (JSNumber x) (JSNumber y) = x + y
+jsAdd (JSString x) (JSString y) = x ++ y
+jsAdd _ _ = error "Runtime type error in jsAdd"
 \end{Verbatim}
 %-- http://www.ecma-international.org/ecma-262/5.1/#sec-11.9.3
 %jsEqual JSUndefined JSUndefined = True
