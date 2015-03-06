@@ -1,4 +1,5 @@
 \documentclass{beamer}
+%\usepackage{tikz}
 \title{Introduction to Functional Programming with Haskell - RCOS Presentation}
 \date{March 6, 2015}
 \author{Avi Weinstock}
@@ -143,6 +144,18 @@ replicate :: Int -> a -> [a]
 
 putStr, putStrLn :: String -> IO ()
 \end{Verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Linked lists - Boxes and Pointers!}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+x = [1,2,3]
+x' = 1:2:3:[]
+y = 1 : 2 : y
+z = 1 : 1 : zipWith (+) z (tail z)
+\end{Verbatim}
+%\includegraphics[scale=0.25]{LinkedListExamples.svg}
+\includegraphics[scale=0.25]{LinkedListExamples.png}
 \end{frame}
 
 \begin{frame}[fragile]
