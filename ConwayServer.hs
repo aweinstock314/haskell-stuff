@@ -4,6 +4,7 @@ import Control.Monad
 import ConwayLife
 import Data.Array.Unboxed
 import Data.Binary
+import Data.Bits
 import qualified Data.Binary.Put as BPut
 import Data.Char
 import Data.Maybe
@@ -19,6 +20,7 @@ import System.Random
 import Text.Blaze.Html.Renderer.Utf8
 import WebUtils
 import qualified Data.ByteString.Lazy as L
+import qualified Data.Vector.Unboxed as V
 import qualified Network.WebSockets as WS
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
@@ -34,6 +36,8 @@ mkPixel False = "\xff\xc8\xc8\xc8"
 mkPixel' True = 0x000000ff
 mkPixel' False = 0xc8c8c8ff
 
+colorPixel rands i True = ((rands V.! i) .&. 0xffffff00 .|. 0x606060ff)
+colorPixel _ _ False = 0x000000ff
 
 serverUrl, cellCanvas :: IsString a => a
 serverUrl = "ws://localhost:8503"
@@ -44,19 +48,16 @@ cellSize = 4 :: Int
 mkResponse board (w, h) = BPut.runPut $ mapM_ (replicateM_ cellSize . mkLine) [0..h-1]
     where mkLine y = mapM_ (\x -> replicateM_ cellSize . BPut.putWord32be . mkPixel' $ board!(x,y)) [0..w-1]
 
+mkResponseColor rands board (w, h) = BPut.runPut $ mapM_ (replicateM_ cellSize . mkLine) [0..h-1]
+    where mkLine y = mapM_ (\x -> replicateM_ cellSize . BPut.putWord32be . colorPixel rands (y*w+x) $ board!(x,y)) [0..w-1]
+
 simpleConwayServer gen (w, h) = withAllWebsocketConnections $ \sock -> do
     putStrLn "Received a websocket connection."
     let initBoard = makeRandomBoard listArray gen (w, h) 0.3 :: UArray (Int, Int) Bool
+    let rands = V.fromList (take (w*h) . randoms $ mkStdGen 0 :: [Word32])
     forM_ (iterate (evolveBoard $ wrapIdx (w, h)) initBoard) $ \board -> do
-        {-
-        responseRef <- newIORef L.empty
-        lineBuf <- newIORef L.empty
-        dogrid (w, h) (\x y -> modifyIORef lineBuf ((L.take (4*fromIntegral cellSize) . L.cycle . mkPixel $ board!(x, y))<>)) (do {line <- readIORef lineBuf; replicateM_ cellSize $ modifyIORef responseRef (line<>); writeIORef lineBuf L.empty})
-        response <- readIORef responseRef
-        WS.sendBinaryData sock $ L.reverse response
-        -}
-        --let response = BPut.runPut $ dogrid (w, h) (\x y -> BPut.putWord32be . mkPixel' $ board!(x,y)) (return ())
-        WS.sendBinaryData sock $ mkResponse board (w,h)
+        --WS.sendBinaryData sock $ mkResponse board (w,h)
+        WS.sendBinaryData sock $ mkResponseColor rands board (w,h)
         delayMs 10
 
 jsDefinitions (w, h) = [jmacro|
