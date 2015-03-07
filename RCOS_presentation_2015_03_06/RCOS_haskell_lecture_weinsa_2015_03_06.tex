@@ -1,4 +1,5 @@
 \documentclass{beamer}
+%\usepackage{tikz}
 \title{Introduction to Functional Programming with Haskell - RCOS Presentation}
 \date{March 6, 2015}
 \author{Avi Weinstock}
@@ -119,7 +120,8 @@ plot f xs = showLines $ prepend xs (map (stars . f) xs)
 
 \begin{frame}[fragile]
 \frametitle{Execution of examples}
-\includegraphics[scale=0.25]{haskell_lecture_numberslide_ghci1_cropped.png}
+%\includegraphics[scale=0.325]{haskell_lecture_numberslide_ghci1_cropped.png}
+\includegraphics[width=\textwidth, height=3.25in]{haskell_lecture_numberslide_ghci1_cropped.png}
 \end{frame}
 
 \begin{frame}[fragile]
@@ -143,6 +145,22 @@ replicate :: Int -> a -> [a]
 
 putStr, putStrLn :: String -> IO ()
 \end{Verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Linked lists - Boxes and Pointers!}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+x = [1,2,3]
+x' = 1:2:3:[]
+y = 1 : 2 : y
+z = 1 : 1 : zipWith (+) z (tail z)
+\end{Verbatim}
+%\includegraphics[scale=0.25]{LinkedListExamples.svg}
+\only<1>{\includegraphics[scale=0.25]{LinkedListExamples1.png}}
+\only<2>{\includegraphics[scale=0.25]{LinkedListExamples2.png}}
+\only<3>{\includegraphics[scale=0.25]{LinkedListExamples3.png}}
+\only<4>{\includegraphics[scale=0.25]{LinkedListExamples4.png}}
+\only<5>{\includegraphics[scale=0.25]{LinkedListExamples5.png}}
 \end{frame}
 
 \begin{frame}[fragile]
@@ -186,6 +204,8 @@ concat = foldr (++) []
 all p = foldr ((&&) . p) True
 
 any p = foldr ((||) . p) False
+
+average = uncurry (/) . foldr (\x (s, t) -> (s+x, t+1)) (0, 0)
 \end{Verbatim}
 \end{frame}
 
@@ -271,6 +291,44 @@ main3 = interact (caesarCipher 3)
 \end{frame}
 
 \begin{frame}[fragile]
+\frametitle{Datatype declarations}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+data TrafficLight = RedLight | YellowLight | GreenLight
+\end{Verbatim}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+import qualified Data.Foldable as F
+
+data List a = Node a (List a) | Empty
+
+instance Foldable List where
+    foldr f acc Empty = acc
+    foldr f acc (Node x xs) = f x (F.foldr f acc xs)
+\end{Verbatim}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+import qualified Data.Map as M
+
+data JSVal =
+    JSUndefined
+    | JSNull
+    | JSBoolean Bool
+    | JSString String
+    | JSNumber Double
+    | JSObject (M.Map String JSVal)
+
+jsAdd (JSNumber x) (JSNumber y) = x + y
+jsAdd (JSString x) (JSString y) = x ++ y
+jsAdd _ _ = error "Runtime type error in jsAdd"
+\end{Verbatim}
+%-- http://www.ecma-international.org/ecma-262/5.1/#sec-11.9.3
+%jsEqual JSUndefined JSUndefined = True
+%jsEqual JSNull JSNull = True
+%jsEqual (JSNumber x) (JSNumber y) = x == y
+%jsEqual (JSString x) (JSString y) = x == y
+%jsEqual (JSBoolean x) (JSBoolean y) = x == y
+%jsEqual (JSObject x) (JSObject y) =
+\end{frame}
+
+\begin{frame}[fragile]
 \frametitle{Binary Search Trees}
 \begin{Verbatim}[frame=single, fontsize=\scriptsize]
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -282,20 +340,84 @@ data BinaryTree a = Node a (BinaryTree a) (BinaryTree a) | Empty
 instance Foldable BinaryTree where
     foldr f acc Empty = acc
     foldr f acc (Node x l r) = F.foldr f (f x (F.foldr f acc r)) l
+\end{Verbatim}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+#include <memory>
+using std::shared_ptr;
+using std::make_shared;
 
+template <class A> struct BinaryTree {
+    A elem;
+    shared_ptr<BinaryTree<A>> left, right;
+};
+template <class A> shared_ptr<BinaryTree<A>> makeTree(A x,
+        shared_ptr<BinaryTree<A>> l, shared_ptr<BinaryTree<A>> r) {
+    return make_shared({elem: x, left: l, right: r});
+}
+template <class A> shared_ptr<BinaryTree<A>> emptyTree() {
+    return shared_ptr<BinaryTree<A>>(nullptr);
+}
+\end{Verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Binary Search Trees (continued)}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
 treeInsert x Empty = Node x Empty Empty
 treeInsert x (Node y l r) = case compare x y of
     LT -> Node y (treeInsert x l) r
     GT -> Node y l (treeInsert x r)
     EQ -> Node y l r
+\end{Verbatim}
 
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+template <class A> shared_ptr<BinaryTree<A>>
+treeInsert(A x, shared_ptr<BinaryTree<A>> tree) {
+    if(tree.get() == nullptr) {
+        return makeTree(x, emptyTree<A>(), emptyTree<A>());
+    } else if(x < tree->elem) {
+        return makeTree(tree->elem, treeInsert(x, tree->left), tree->right);
+    } else if(tree->elem < x) {
+        return makeTree(tree->elem, tree->left, treeInsert(x, tree->right));
+    } else { // equal
+        return tree;
+    }
+}
+\end{Verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Binary Search Trees (continued)}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
 treeFind x Empty = Empty
 treeFind x (Node y l r) = case compare x y of
     LT -> treeFind x l
     GT -> treeFind x r
     EQ -> Node y l r
 \end{Verbatim}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+template <class A> shared_ptr<BinaryTree<A>>
+treeFind(A x, shared_ptr<BinaryTree<A>> tree) {
+    if(tree.get() == nullptr) {
+        return tree;
+    } else if(x < tree->elem) {
+        return treeFind(x, tree->left);
+    } else if(tree->elem < x) {
+        return treeFind(x, tree->right);
+    } else { // equal
+        return tree;
+    }
+}
+\end{Verbatim}
 \end{frame}
+
+%\begin{frame}[fragile]
+%\frametitle{Binary Search Trees (continued)}
+%\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+%\end{Verbatim}
+%\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+%\end{Verbatim}
+%\end{frame}
 
 \begin{frame}[fragile]
 \frametitle{Binary Search Trees (continued)}
@@ -314,6 +436,36 @@ treeRemove x (Node y l r) = case compare x y of
 \end{frame}
 
 \begin{frame}[fragile]
+\frametitle{Binary Search Trees (continued)}
+\begin{Verbatim}[frame=single, fontsize=\scriptsize]
+template <class A> shared_ptr<BinaryTree<A>>
+treeRemove(A x, shared_ptr<BinaryTree<A>> tree) {
+    if(tree.get() == nullptr) {
+        return tree;
+    } else if(x < tree->elem) {
+        return treeRemove(x, tree->left);
+    } else if(tree->elem < x) {
+        return treeRemove(x, tree->right);
+    } else { // equal
+        if((tree->left.get() == nullptr) &&
+            (tree->right.get() == nullptr)) {
+            return emptyTree<A>();
+        } else if(tree->right.get() == nullptr) {
+            return tree->left;
+        } else if(tree->left.get() == nullptr) {
+            return tree->right;
+        } else {
+            // requires implementation of tree iterators, which was not done
+            //  for this presentation due to space constraints
+            A lMax = std::max(begin(tree->left), end(tree->left));
+            return makeTree(lMax, treeRemove(lMax, tree->left), tree->right);
+        }
+    }
+}
+\end{Verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
 \frametitle{Quicksort}
 \begin{Verbatim}[frame=single, fontsize=\scriptsize]
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -323,8 +475,12 @@ import Data.STRef
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 
-import Data.List
 import Test.QuickCheck
+
+naiveQuicksort [] = []
+naiveQuicksort lst = naiveQuicksort less ++ eq ++ naiveQuicksort more where
+    pivot = lst !! (length lst `div` 2)
+    [less, eq, more] = map (\op -> filter (`op` pivot) lst) [(<), (==), (>)]
 
 partitionByST cmp vec pivot lo hi = aux lo lo hi where
     aux i j n | j <= n = do 
@@ -352,9 +508,11 @@ quicksortBy cmp vec = V.modify (quicksortByST cmp) vec
 
 quicksort = quicksortBy compare
 
-runTests = quickCheck matchesListSort where 
-    matchesListSort :: [Int] -> Bool
-    matchesListSort x = (sort x) == (V.toList . quicksort $ V.fromList x)
+quicksortList = V.toList . quicksort . V.fromList
+
+runTests = quickCheck naiveSort_matches_STSort where
+    naiveSort_matches_STSort :: [Int] -> Bool
+    naiveSort_matches_STSort x = naiveQuicksort x == quicksortList x
 \end{Verbatim}
 \end{frame}
 
