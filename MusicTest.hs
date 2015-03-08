@@ -21,6 +21,7 @@ import qualified Network.WebSockets as WS
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
+import Debug.Trace
 
 tau :: Floating a => a
 tau = 2 * pi
@@ -31,6 +32,9 @@ sineWave sampleRate seconds frequency =
     map step [0..numFrames-1] where
         step i = sin (frequency * tau * i / sampleRate)
         numFrames = sampleRate * seconds
+
+lfo sampleRate frequency floats = zipWith step [0..] floats where
+    step i x = x * sin ((frequency (i / sampleRate)) * tau * i / sampleRate)
 
 silence sampleRate seconds = replicate numFrames 0.0 where numFrames = floor $ sampleRate * seconds
 
@@ -129,6 +133,10 @@ tune7 sampleRate = execWriter $ do
     forM_ (take 10 $ cycle [800, 500]) $ \x -> do
         tell . env $ note x
 
+tune8 sampleRate = result where
+    base = map (0.5*) $ sineWave sampleRate 10 700
+    result = lfo sampleRate (\x -> if even $ floor x then 2 else 10) base
+
 tuneServer tune = withAllWebsocketConnections $ \sock -> do
     sampleRateString <- WS.receiveData sock
     case safeRead $ unlbs sampleRateString :: Maybe Float of
@@ -212,5 +220,5 @@ main = do
     let portNumber = 8504
     gen <- getStdGen
     putStrLn $ mconcat ["Listening on port ", show portNumber, "."]
-    forkIO $ tuneServer tune7 (portNumber+1)
+    forkIO $ tuneServer tune8 (portNumber+1)
     run portNumber pageServer
