@@ -1,4 +1,4 @@
-#!/usr/bin/env runghc
+#!/usr/bin/env runhaskell
 import Data.Char
 import Data.Word
 import Foreign.Marshal

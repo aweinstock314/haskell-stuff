@@ -1,4 +1,4 @@
-#!/usr/bin/env runghc
+#!/usr/bin/env runhaskell
 import Control.Concurrent
 import Control.Monad
 import Network

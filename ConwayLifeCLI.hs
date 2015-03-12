@@ -1,4 +1,4 @@
-#!/usr/bin/env runghc
+#!/usr/bin/env runhaskell
 {-# LANGUAGE TemplateHaskell #-}
 import Control.Monad
 import Data.Array.IO
