@@ -5,6 +5,9 @@ import Data.STRef
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 
+import Criterion.Main
+import Data.List (sort)
+import System.Random
 import Test.QuickCheck
 
 {-
@@ -61,3 +64,15 @@ quicksortList = V.toList . quicksort . V.fromList
 runTests = verboseCheck naiveSort_matches_STSort where
     naiveSort_matches_STSort :: [Int] -> Bool
     naiveSort_matches_STSort x = naiveQuicksort x == quicksortList x
+
+runBenchmarks n = do
+    let sampleDataList = take n . randoms $ mkStdGen 0 :: [Int]
+    let sampleDataVec = V.fromList sampleDataList
+    defaultMain . return $ bgroup "quicksort" [
+        bench "standardSort" $ nf sort sampleDataList,
+        bench "naiveSort" $ nf naiveQuicksort sampleDataList,
+        bench "STSort" $ nf quicksort sampleDataVec,
+        bench "STListSort" $ nf quicksortList sampleDataList
+        ]
+
+main = runBenchmarks 100000
