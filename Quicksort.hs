@@ -5,6 +5,11 @@ import Data.STRef
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 
+import Foreign
+import Foreign.C.Types
+import Foreign.Ptr
+import qualified System.IO.Unsafe as UNSAFE
+
 import Criterion.Main
 import Data.List (sort)
 import System.Random
@@ -61,6 +66,23 @@ quicksort = quicksortBy compare
 
 quicksortList = V.toList . quicksort . V.fromList
 
+foreign import ccall "stdlib.h qsort" libc_qsort' :: Ptr () -> CSize -> CSize -> FunPtr (Ptr () -> Ptr () -> IO CInt) -> IO ()
+foreign import ccall unsafe "wrapper" wrapComparator' :: (Ptr () -> Ptr () -> IO CInt) -> IO (FunPtr (Ptr () -> Ptr () -> IO CInt))
+
+wrapComparator :: (Storable a, Ord a) => (a -> a -> Ordering) -> IO (FunPtr (Ptr () -> Ptr () -> IO CInt))
+wrapComparator cmp = wrapComparator' $ \px py -> do
+    let d = peek . castPtr
+    x <- d px
+    y <- d py
+    return $ case cmp x y of { LT -> -1; EQ -> 0; GT -> 1 }
+
+libc_qsort :: (Storable a, Ord a) => [a] -> [a]
+libc_qsort [] = []
+libc_qsort (x:xs) = UNSAFE.unsafePerformIO $ withArrayLen (x:xs) $ \len p -> do
+    comparator <- wrapComparator (\y z -> compare (y `asTypeOf` x) z)
+    libc_qsort' (castPtr p) (fromIntegral len) (fromIntegral $ sizeOf x) comparator
+    peekArray len p
+
 runTests = verboseCheck naiveSort_matches_STSort where
     naiveSort_matches_STSort :: [Int] -> Bool
     naiveSort_matches_STSort x = naiveQuicksort x == quicksortList x
@@ -72,7 +94,8 @@ runBenchmarks n = do
         bench "standardSort" $ nf sort sampleDataList,
         bench "naiveSort" $ nf naiveQuicksort sampleDataList,
         bench "STSort" $ nf quicksort sampleDataVec,
-        bench "STListSort" $ nf quicksortList sampleDataList
+        bench "STListSort" $ nf quicksortList sampleDataList,
+        bench "libc-qsort" $ nf libc_qsort sampleDataList
         ]
 
 main = runBenchmarks 100000
