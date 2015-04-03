@@ -71,9 +71,8 @@ foreign import ccall unsafe "wrapper" wrapComparator' :: (Ptr () -> Ptr () -> IO
 
 wrapComparator :: (Storable a, Ord a) => (a -> a -> Ordering) -> IO (FunPtr (Ptr () -> Ptr () -> IO CInt))
 wrapComparator cmp = wrapComparator' $ \px py -> do
-    let d = peek . castPtr
-    x <- d px
-    y <- d py
+    let deref = peek . castPtr
+    x <- deref px; y <- deref py
     return $ case cmp x y of { LT -> -1; EQ -> 0; GT -> 1 }
 
 libc_qsort :: (Storable a, Ord a) => [a] -> [a]
