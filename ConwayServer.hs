@@ -36,7 +36,7 @@ mkPixel False = "\xff\xc8\xc8\xc8"
 mkPixel' True = 0x000000ff
 mkPixel' False = 0xc8c8c8ff
 
-colorPixel rands i True = ((rands V.! i) .&. 0xffffff00 .|. 0x606060ff)
+colorPixel rands i True = ((rands V.! i) .|. 0x606060ff)
 colorPixel _ _ False = 0x000000ff
 
 serverUrl, cellCanvas :: IsString a => a
