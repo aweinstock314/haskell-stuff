@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE MagicHash, UnboxedTuples #-}
 module FastInverseSqrt where
 import Data.Bits
 
@@ -7,10 +7,10 @@ import Foreign.Marshal.Unsafe
 import Foreign.Ptr
 import Foreign.Storable
 
-{-
 import GHC.Prim
 import GHC.Types
--}
+
+import GHC.ST
 
 import Criterion.Main
 import System.Random
@@ -24,6 +24,20 @@ castStorable x = unsafeLocalState . alloca $ \p -> poke p x >> peek (castPtr p)
 
 intToDouble = castStorable :: Int -> Double
 doubleToInt = castStorable :: Double -> Int
+
+{-
+intToDouble (I# x) = runST $ ST action where
+    action s = case newByteArray# 8# s of
+        (# s, arr #) -> case writeIntArray# arr 0# x s
+            of s -> case readDoubleArray# arr 0# s
+                of (# s, y #) -> (# s, D# y #)
+
+doubleToInt (D# x) = runST $ ST action where
+    action s = case newByteArray# 8# s of
+        (# s, arr #) -> case writeDoubleArray# arr 0# x s
+            of s -> case readIntArray# arr 0# s
+                of (# s, y #) -> (# s, I# y #)
+-}
 
 {-
 -- These only work in unoptimized/interpreted, and cause
