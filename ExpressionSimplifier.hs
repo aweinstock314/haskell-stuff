@@ -29,8 +29,15 @@ mat3x3 ((a11, a12, a13),
 matrixMultiply (Matrix a) (Matrix b) = Matrix $ map' ((foldl1' Add .) . zipWith Mul) a (transpose b)
     where map' f a b = map (\x -> map (\y -> f x y) b) a
 
+simplify (Add (Lit x) (Lit y)) = Lit (x + y)
+simplify (Mul (Lit x) (Lit y)) = Lit (x * y)
+
 simplify (Add (Lit 0) x) = simplify x
 simplify (Add x (Lit 0)) = simplify x
+simplify (Add (Neg x) y) | x == y = Lit 0
+simplify (Add x (Neg y)) | x == y = Lit 0
+
+simplify (Add (Add x y) z) = simplify (Add x (Add y z))
 
 simplify (Mul (Lit 0) _) = Lit 0
 simplify (Mul _ (Lit 0)) = Lit 0
@@ -38,7 +45,11 @@ simplify (Mul _ (Lit 0)) = Lit 0
 simplify (Mul (Lit 1) x) = simplify x
 simplify (Mul x (Lit 1)) = simplify x
 
+simplify (Mul (Lit (-1)) x) = Neg (simplify x)
+simplify (Mul x (Lit (-1))) = Neg (simplify x)
+
 simplify (Neg (Neg x)) = simplify x
+simplify (Neg (Lit x)) = Lit (negate x)
 
 simplify (Add x y) = Add (simplify x) (simplify y)
 simplify (Mul x y) = Mul (simplify x) (simplify y)
@@ -64,6 +75,16 @@ expr3 = let (sin_t, cos_t) = (Var "sin(t)", Var "cos(t)") in
                    (mat3x3 ((cos_t, Neg sin_t, Lit 0),
                             (sin_t,     cos_t, Lit 0),
                             (Lit 0,     Lit 0, Lit 1)))
+
+-- https://www.opengl.org/sdk/docs/man2/xhtml/glRotate.xml
+rotation c s x y z = Matrix [
+    [x*x*(one - c) + c, x*y*(one - c) - (z*s), x*z*(one - c) - (y*s), zero],
+    [y*x*(one - c) + (z*s), y*y*(one - c) + c, y*z*(one - c) - (x*s), zero],
+    [x*z*(one - c) - (y*s), y*z*(one - c) + (x*s), z*z*(one - c) + c, zero],
+    [zero, zero, zero, one]] where
+        (zero, one) = (Lit 0, Lit 1)
+        ((+),(*)) = (Add, Mul)
+        a - b = a `Add` (Neg b)
 
 iterateToConvergence f init = unfoldr aux Nothing where
     aux Nothing = mkState init
