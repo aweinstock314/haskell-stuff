@@ -5,6 +5,7 @@ import Text.Printf
 data Expr =
       Add Expr Expr
     | Mul Expr Expr
+    | Div Expr Expr
     | Neg Expr
     | Matrix [[Expr]]
     | Var String
@@ -14,6 +15,7 @@ data Expr =
 instance Show Expr where
     show (Add e1 e2) = printf "(%s)+(%s)" (show e1) (show e2)
     show (Mul e1 e2) = printf "(%s)*(%s)" (show e1) (show e2)
+    show (Div e1 e2) = printf "(%s)/(%s)" (show e1) (show e2)
     show (Neg e) = printf "(-%s)" (show e)
     show (Matrix m) = printf "(Matrix %s)" $ show m
     show (Var name) = name
@@ -53,6 +55,7 @@ simplify (Neg (Lit x)) = Lit (negate x)
 
 simplify (Add x y) = Add (simplify x) (simplify y)
 simplify (Mul x y) = Mul (simplify x) (simplify y)
+simplify (Div x y) = Div (simplify x) (simplify y)
 simplify (Neg x) = Neg (simplify x)
 
 simplify (Matrix m) = Matrix $ map (map simplify) m
@@ -86,6 +89,18 @@ rotation c s x y z = Matrix [
         ((+),(*)) = (Add, Mul)
         a - b = a `Add` (Neg b)
 
+-- https://www.opengl.org/sdk/docs/man2/xhtml/glFrustum.xml
+frustum left right bottom top near far = Matrix [
+    [(two*near)/(right-left), zero, (right+left)/(right-left), zero],
+    [zero, (two*near)/(top-bottom), (top+bottom)/(top-bottom), zero],
+    [zero, zero, Neg ((far+near)/(far-near)), (two*far*near)/(far-near)],
+    [zero, zero, Lit (-1), zero]] where
+        (zero, two) = (Lit 0, Lit 2)
+        ((+),(*),(/)) = (Add, Mul, Div)
+        a - b = a `Add` (Neg b)
+
+expr4 = frustum (Lit (-1)) (Lit 1) (Lit (-1)) (Lit 1) (Lit 0.5) (Lit 100)
+
 iterateToConvergence f init = unfoldr aux Nothing where
     aux Nothing = mkState init
     aux (Just prev) = if f prev == prev then Nothing else mkState $ f prev
@@ -94,4 +109,4 @@ iterateToConvergence f init = unfoldr aux Nothing where
 showDerivation :: Show a => [a] -> IO ()
 showDerivation = mapM_ (\x -> print x >> putStrLn "")
 
-main = showDerivation $ iterateToConvergence simplify expr3
+main = showDerivation $ iterateToConvergence simplify expr4
