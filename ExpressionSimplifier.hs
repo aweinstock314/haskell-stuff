@@ -28,11 +28,34 @@ mat3x3 ((a11, a12, a13),
         [a21, a22, a23],
         [a31, a32, a33]]
 
+newtype GLSL = GLSL Expr
+
+instance Show GLSL where
+    showsPrec p (GLSL (Add x y)) = showParen (p > 6) $ showsPrec 6 (GLSL x) . ('+':) . showsPrec 6 (GLSL y)
+    showsPrec p (GLSL (Mul x y)) = showParen (p > 7) $ showsPrec 7 (GLSL x) . ('*':) . showsPrec 7 (GLSL y)
+    showsPrec p (GLSL (Div x y)) = showParen (p > 7) $ showsPrec 7 (GLSL x) . ('/':) . showsPrec 7 (GLSL y)
+    showsPrec p (GLSL (Neg x)) = showParen (p > 10) $ ('-':) . showsPrec p (GLSL x)
+    -- GLSL matrices are 4x4, column-major
+    showsPrec p (GLSL (Matrix [[a11, a12, a13, a14],
+                               [a21, a22, a23, a24],
+                               [a31, a32, a33, a34],
+                               [a41, a42, a43, a44]])) = ("mat4x4"++) .
+        showParen True (foldr (.) id . intersperse (',':) . map shows $
+                            [a11, a21, a31, a41,
+                             a12, a22, a32, a42,
+                             a13, a23, a33, a43,
+                             a14, a24, a34, a44])
+    showsPrec p (GLSL (Matrix _)) = error "Non-4x4 matrices are currently unsupported for GLSL output"
+    showsPrec p (GLSL (Var name)) = showString name
+    showsPrec p (GLSL (Lit x)) = showsPrec 0 x
+
 matrixMultiply (Matrix a) (Matrix b) = Matrix $ map' ((foldl1' Add .) . zipWith Mul) a (transpose b)
     where map' f a b = map (\x -> map (\y -> f x y) b) a
 
 simplify (Add (Lit x) (Lit y)) = Lit (x + y)
 simplify (Mul (Lit x) (Lit y)) = Lit (x * y)
+simplify (Div (Lit x) (Lit y)) = Lit (x / y)
+simplify (Neg (Lit x)) = Lit (negate x)
 
 simplify (Add (Lit 0) x) = simplify x
 simplify (Add x (Lit 0)) = simplify x
@@ -51,7 +74,6 @@ simplify (Mul (Lit (-1)) x) = Neg (simplify x)
 simplify (Mul x (Lit (-1))) = Neg (simplify x)
 
 simplify (Neg (Neg x)) = simplify x
-simplify (Neg (Lit x)) = Lit (negate x)
 
 simplify (Add x y) = Add (simplify x) (simplify y)
 simplify (Mul x y) = Mul (simplify x) (simplify y)
@@ -109,4 +131,4 @@ iterateToConvergence f init = unfoldr aux Nothing where
 showDerivation :: Show a => [a] -> IO ()
 showDerivation = mapM_ (\x -> print x >> putStrLn "")
 
-main = showDerivation $ iterateToConvergence simplify expr4
+main = showDerivation . map GLSL $ iterateToConvergence simplify expr4
