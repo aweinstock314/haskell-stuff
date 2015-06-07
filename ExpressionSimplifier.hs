@@ -111,6 +111,14 @@ rotation c s x y z = Matrix [
         ((+),(*)) = (Add, Mul)
         a - b = a `Add` (Neg b)
 
+-- https://www.opengl.org/sdk/docs/man2/xhtml/glTranslate.xml
+translation x y z = Matrix [
+    [ one, zero, zero,   x],
+    [zero,  one, zero,   y],
+    [zero, zero,  one,   z],
+    [zero, zero, zero, one]] where
+        (zero, one) = (Lit 0, Lit 1)
+
 -- https://www.opengl.org/sdk/docs/man2/xhtml/glFrustum.xml
 frustum left right bottom top near far = Matrix [
     [(two*near)/(right-left), zero, (right+left)/(right-left), zero],
@@ -123,10 +131,18 @@ frustum left right bottom top near far = Matrix [
 
 expr4 = frustum (Lit (-1)) (Lit 1) (Lit (-1)) (Lit 1) (Lit 0.5) (Lit 100)
 
+expr5 = foldl1' matrixMultiply [
+    rotation (Var "cos(cameraOri.x)") (Lit 0) (Lit (-1)) (Lit 0) (Lit 0),
+    rotation (Lit 0) (Var "sin(cameraOri.y)") (Lit 0) (Lit (-1)) (Lit 0),
+    translation (Neg $ Var "cameraPos.x") (Neg $ Var "cameraPos.y") (Neg $ Var "cameraPos.z")
+    ]
+
 iterateToConvergence f init = unfoldr aux Nothing where
     aux Nothing = mkState init
     aux (Just prev) = if f prev == prev then Nothing else mkState $ f prev
     mkState x = Just (x, Just x)
+
+simplify' = last . iterateToConvergence simplify
 
 showDerivation :: Show a => [a] -> IO ()
 showDerivation = mapM_ (\x -> print x >> putStrLn "")
