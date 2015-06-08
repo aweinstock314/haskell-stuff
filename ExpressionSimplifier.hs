@@ -103,7 +103,7 @@ expr3 = let (sin_t, cos_t) = (Var "sin(t)", Var "cos(t)") in
 
 -- https://www.opengl.org/sdk/docs/man2/xhtml/glRotate.xml
 rotation c s x y z = Matrix [
-    [x*x*(one - c) + c, x*y*(one - c) - (z*s), x*z*(one - c) - (y*s), zero],
+    [x*x*(one - c) + c, x*y*(one - c) - (z*s), x*z*(one - c) + (y*s), zero],
     [y*x*(one - c) + (z*s), y*y*(one - c) + c, y*z*(one - c) - (x*s), zero],
     [x*z*(one - c) - (y*s), y*z*(one - c) + (x*s), z*z*(one - c) + c, zero],
     [zero, zero, zero, one]] where
@@ -132,12 +132,13 @@ frustum left right bottom top near far = Matrix [
 expr4 = foldl1' matrixMultiply [
     frustum (Lit (-1)) (Lit 1) (Lit (-1)) (Lit 1) (Lit 0.5) (Lit 100),
     rotation (Var "cos(cameraOri.y)") (Var "sin(cameraOri.y)") (Lit (-1)) (Lit 0) (Lit 0),
-    rotation (Var "cos(cameraOri.x)") (Var "sin(cameraOri.x)") (Lit 0) (Lit (-1)) (Lit 0),
-    translation (Neg $ Var "cameraPos.x") (Neg $ Var "cameraPos.y") (Neg $ Var "cameraPos.z"),
+    rotation (Var "cos(cameraOri.x)") (Var "sin(cameraOri.x)") (Lit 0) (Lit 1) (Lit 0),
+    translation (Neg $ Var "cameraPos.x") (Neg $ Var "cameraPos.y") (Var "cameraPos.z"),
     translation (Var "objectPos.x") (Var "objectPos.y") (Neg $ Var "objectPos.z"),
     rotation (Var "cos(objectOri.x)") (Var "sin(objectOri.x)") (Lit 0) (Lit 1) (Lit 0),
     rotation (Var "cos(objectOri.y)") (Var "sin(objectOri.y)") (Lit 1) (Lit 0) (Lit 0)
     ]
+
 
 iterateToConvergence f init = unfoldr aux Nothing where
     aux Nothing = mkState init
