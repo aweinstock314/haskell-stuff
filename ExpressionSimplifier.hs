@@ -39,7 +39,7 @@ instance Show GLSL where
     showsPrec p (GLSL (Matrix [[a11, a12, a13, a14],
                                [a21, a22, a23, a24],
                                [a31, a32, a33, a34],
-                               [a41, a42, a43, a44]])) = ("mat4x4"++) .
+                               [a41, a42, a43, a44]])) = ("mat4"++) .
         showParen True (foldr (.) id . intersperse (',':) . map shows $
                             [a11, a21, a31, a41,
                              a12, a22, a32, a42,
@@ -123,18 +123,20 @@ translation x y z = Matrix [
 frustum left right bottom top near far = Matrix [
     [(two*near)/(right-left), zero, (right+left)/(right-left), zero],
     [zero, (two*near)/(top-bottom), (top+bottom)/(top-bottom), zero],
-    [zero, zero, Neg ((far+near)/(far-near)), (two*far*near)/(far-near)],
+    [zero, zero, Neg ((far+near)/(far-near)), (Neg $ two*far*near)/(far-near)],
     [zero, zero, Lit (-1), zero]] where
         (zero, two) = (Lit 0, Lit 2)
         ((+),(*),(/)) = (Add, Mul, Div)
         a - b = a `Add` (Neg b)
 
-expr4 = frustum (Lit (-1)) (Lit 1) (Lit (-1)) (Lit 1) (Lit 0.5) (Lit 100)
-
-expr5 = foldl1' matrixMultiply [
-    rotation (Var "cos(cameraOri.x)") (Lit 0) (Lit (-1)) (Lit 0) (Lit 0),
-    rotation (Lit 0) (Var "sin(cameraOri.y)") (Lit 0) (Lit (-1)) (Lit 0),
-    translation (Neg $ Var "cameraPos.x") (Neg $ Var "cameraPos.y") (Neg $ Var "cameraPos.z")
+expr4 = foldl1' matrixMultiply [
+    frustum (Lit (-1)) (Lit 1) (Lit (-1)) (Lit 1) (Lit 0.5) (Lit 100),
+    rotation (Var "cos(cameraOri.y)") (Var "sin(cameraOri.y)") (Lit (-1)) (Lit 0) (Lit 0),
+    rotation (Var "cos(cameraOri.x)") (Var "sin(cameraOri.x)") (Lit 0) (Lit (-1)) (Lit 0),
+    translation (Neg $ Var "cameraPos.x") (Neg $ Var "cameraPos.y") (Neg $ Var "cameraPos.z"),
+    translation (Var "objectPos.x") (Var "objectPos.y") (Neg $ Var "objectPos.z"),
+    rotation (Var "cos(objectOri.x)") (Var "sin(objectOri.x)") (Lit 0) (Lit 1) (Lit 0),
+    rotation (Var "cos(objectOri.y)") (Var "sin(objectOri.y)") (Lit 1) (Lit 0) (Lit 0)
     ]
 
 iterateToConvergence f init = unfoldr aux Nothing where
