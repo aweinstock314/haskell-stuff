@@ -135,7 +135,7 @@ expr4 = foldl1' matrixMultiply [
     rotation (Var "cos(cameraOri.x)") (Var "sin(cameraOri.x)") (Lit 0) (Lit 1) (Lit 0),
     translation (Neg $ Var "cameraPos.x") (Neg $ Var "cameraPos.y") (Var "cameraPos.z"),
     translation (Var "objectPos.x") (Var "objectPos.y") (Neg $ Var "objectPos.z"),
-    rotation (Var "cos(objectOri.x)") (Var "sin(objectOri.x)") (Lit 0) (Lit 1) (Lit 0),
+    rotation (Var "cos(objectOri.x)") (Var "sin(objectOri.x)") (Lit 0) (Lit (-1)) (Lit 0),
     rotation (Var "cos(objectOri.y)") (Var "sin(objectOri.y)") (Lit 1) (Lit 0) (Lit 0)
     ]
 
