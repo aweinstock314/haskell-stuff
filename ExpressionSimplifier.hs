@@ -36,16 +36,8 @@ instance Show GLSL where
     showsPrec p (GLSL (Div x y)) = showParen (p > 7) $ showsPrec 7 (GLSL x) . ('/':) . showsPrec 7 (GLSL y)
     showsPrec p (GLSL (Neg x)) = showParen (p > 10) $ ('-':) . showsPrec p (GLSL x)
     -- GLSL matrices are 4x4, column-major
-    showsPrec p (GLSL (Matrix [[a11, a12, a13, a14],
-                               [a21, a22, a23, a24],
-                               [a31, a32, a33, a34],
-                               [a41, a42, a43, a44]])) = ("mat4"++) .
-        showParen True (foldr (.) id . intersperse (',':) . map shows $
-                            [a11, a21, a31, a41,
-                             a12, a22, a32, a42,
-                             a13, a23, a33, a43,
-                             a14, a24, a34, a44])
-    showsPrec p (GLSL (Matrix _)) = error "Non-4x4 matrices are currently unsupported for GLSL output"
+    showsPrec p (GLSL (Matrix m)) = ("mat4"++) .
+        showParen True (foldr (.) id . intersperse (',':) . map shows . concat $ transpose m)
     showsPrec p (GLSL (Var name)) = showString name
     showsPrec p (GLSL (Lit x)) = showsPrec 0 x
 
