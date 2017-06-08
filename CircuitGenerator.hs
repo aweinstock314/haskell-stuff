@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 import Control.Monad.State
@@ -18,7 +19,15 @@ pad xs ys val = aux xs ys where
     aux (x : xs) (y : ys) = (x, y) : aux xs ys
 
 data Gate = And | Xor deriving Show
-data Circuit a = Input a | Constant Bool | Not (Circuit a) | Function Gate (Circuit a) (Circuit a) | Tagged String (Circuit a) deriving Show
+data Circuit a = Input a | Constant Bool | Not (Circuit a) | Function Gate (Circuit a) (Circuit a) | Tagged String (Circuit a) deriving (Show, Functor)
+
+instance Monad Circuit where
+    return = Input
+    (Input a) >>= f = f a
+    (Constant b) >>= _ = Constant b
+    (Not c) >>= f = Not (c >>= f)
+    (Function g c1 c2) >>= f = Function g (c1 >>= f) (c2 >>= f)
+    (Tagged s c) >>= f = Tagged s (c >>= f)
 
 cAnd x y = Function And x y
 cXor x y = Function Xor x y
@@ -34,12 +43,6 @@ evalC env (Constant b) = b
 evalC env (Not c) = not (evalC env c)
 evalC env (Function g c1 c2) = evalG g (evalC env c1) (evalC env c2)
 evalC env (Tagged s c) = evalC env c
-
-mapInput f (Input x) = Input (f x)
-mapInput f (Constant b) = Constant b
-mapInput f (Not c) = Not (mapInput f c)
-mapInput f (Function g c1 c2) = Function g (mapInput f c1) (mapInput f c2)
-mapInput f (Tagged s c) = Tagged s (mapInput f c)
 
 gensym = modify (+1) >> get
 renderDot circuit = "subgraph {\n" ++ fst (evalState (f circuit) 0) ++ "\n}\n" where
@@ -93,7 +96,7 @@ intInput = map Input . littleEndianDecomposition
 intInputs a b = (pad (intInput a) (intInput b) (Constant False))
 
 main = do
-    let f i name = writeFile name $ "digraph {\n" ++ (map (mapInput (\(c,i) -> c : show i)) (adder (zip (inputList 'x' i) (inputList 'y' i))) >>= renderDot) ++ "\n}\n"
+    let f i name = writeFile name $ "digraph {\n" ++ (map (fmap (\(c,i) -> c : show i)) (adder (zip (inputList 'x' i) (inputList 'y' i))) >>= renderDot) ++ "\n}\n"
     forM_ [0..4] $ \i -> f i ("adder" ++ show i ++ ".dot")
 
 tests = do
