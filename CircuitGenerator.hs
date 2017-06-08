@@ -45,6 +45,7 @@ gensym = modify (+1) >> get
 renderDot circuit = "subgraph {\n" ++ fst (evalState (f circuit) 0) ++ "\n}\n" where
     ident s = gensym >>= \i -> return $ s ++ show i
     f (Input a) = return (show a, show a)
+    --f (Constant b) = return (show b, show b) -- not gensymming the constants yields way too many cramped lines
     f (Constant b) = ident (show b) >>= \x -> return (x, x)
     f (Not c) = do
         n <- ident "Not"
@@ -93,10 +94,7 @@ intInputs a b = (pad (intInput a) (intInput b) (Constant False))
 
 main = do
     let f i name = writeFile name $ "digraph {\n" ++ (map (mapInput (\(c,i) -> c : show i)) (adder (zip (inputList 'x' i) (inputList 'y' i))) >>= renderDot) ++ "\n}\n"
-    f 0 "adder0.dot"
-    f 1 "adder1.dot"
-    f 2 "adder2.dot"
-    f 4 "adder4.dot"
+    forM_ [0..4] $ \i -> f i ("adder" ++ show i ++ ".dot")
 
 tests = do
     quickCheck $ \a b -> (a < b) == evalC id (ltBit (Input a) (Input b)) -- bit-less-than correct
