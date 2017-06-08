@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+import Control.Monad.State
 import Data.List
 import Data.Ord
 import Data.Word
@@ -34,6 +35,31 @@ evalC env (Not c) = not (evalC env c)
 evalC env (Function g c1 c2) = evalG g (evalC env c1) (evalC env c2)
 evalC env (Tagged s c) = evalC env c
 
+mapInput f (Input x) = Input (f x)
+mapInput f (Constant b) = Constant b
+mapInput f (Not c) = Not (mapInput f c)
+mapInput f (Function g c1 c2) = Function g (mapInput f c1) (mapInput f c2)
+mapInput f (Tagged s c) = Tagged s (mapInput f c)
+
+gensym = modify (+1) >> get
+renderDot circuit = "subgraph {\n" ++ fst (evalState (f circuit) 0) ++ "\n}\n" where
+    ident s = gensym >>= \i -> return $ s ++ show i
+    f (Input a) = return (show a, show a)
+    f (Constant b) = ident (show b) >>= \x -> return (x, x)
+    f (Not c) = do
+        n <- ident "Not"
+        (c', x) <- f c
+        return ("{ " ++ n ++ " -> " ++ x ++ "}\n" ++ c', n)
+    f (Function g c1 c2) = do
+        i <- gensym
+        (c1', x) <- f c1
+        (c2', y) <- f c2
+        z <- ident (show g)
+        return ("{ " ++ z ++ " -> " ++ x ++ "}\n" ++
+                "{ " ++ z ++ " -> " ++ y ++ "}\n" ++
+                c1' ++ c2', z)
+    f (Tagged s c) = f c -- TODO: annotate tag
+
 ltBit x y = Tagged "<" $ Not x `cAnd` y
 
 -- a < b (as unsigned little-endian words) iff exists i such that the i'th bit a is less than the i'th bit of b and all the leading bits (j > i) are equal
@@ -64,6 +90,13 @@ cMaximum inputs = ifThenElse' (Not (ltUnsigned inputs)) inputs
 inputList x n = [Input (x, i) | i <- [0..n]]
 intInput = map Input . littleEndianDecomposition
 intInputs a b = (pad (intInput a) (intInput b) (Constant False))
+
+main = do
+    let f i name = writeFile name $ "digraph {\n" ++ (map (mapInput (\(c,i) -> c : show i)) (adder (zip (inputList 'x' i) (inputList 'y' i))) >>= renderDot) ++ "\n}\n"
+    f 0 "adder0.dot"
+    f 1 "adder1.dot"
+    f 2 "adder2.dot"
+    f 4 "adder4.dot"
 
 tests = do
     quickCheck $ \a b -> (a < b) == evalC id (ltBit (Input a) (Input b)) -- bit-less-than correct
