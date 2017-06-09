@@ -96,8 +96,10 @@ intInput = map Input . littleEndianDecomposition
 intInputs a b = (pad (intInput a) (intInput b) (Constant False))
 
 main = do
-    let f i name = writeFile name $ "digraph {\n" ++ (map (fmap (\(c,i) -> c : show i)) (adder (zip (inputList 'x' i) (inputList 'y' i))) >>= renderDot) ++ "\n}\n"
-    forM_ [0..4] $ \i -> f i ("adder" ++ show i ++ ".dot")
+    let f g i name = writeFile name $ "digraph {\n" ++ (map (fmap (\(c,i) -> c : show i)) (g (zip (inputList 'x' i) (inputList 'y' i))) >>= renderDot) ++ "\n}\n"
+    forM_ [0..4] $ \i -> do
+        f adder i ("adder" ++ show i ++ ".dot")
+        f (return . ltUnsigned) i ("compare" ++ show i ++ ".dot")
 
 tests = do
     quickCheck $ \a b -> (a < b) == evalC id (ltBit (Input a) (Input b)) -- bit-less-than correct
